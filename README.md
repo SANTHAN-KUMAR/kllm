@@ -38,12 +38,13 @@ The only thing you need is a Kaggle API token. Everything else is created for yo
    |---|---|
    | nothing (Linux / macOS) | `curl -fsSL https://raw.githubusercontent.com/SANTHAN-KUMAR/kllm/main/install.sh \| sh` |
    | nothing (Windows) | `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/SANTHAN-KUMAR/kllm/main/install.ps1 \| iex"` |
-   | uv | `uv tool install kllm` (or try it without installing: `uvx kllm doctor`) |
-   | pipx | `pipx install kllm` |
-   | pip | `pip install kllm` |
+   | uv | `uv tool install kllm-gateway` (or try it without installing: `uvx --from kllm-gateway kllm doctor`) |
+   | pipx | `pipx install kllm-gateway` |
+   | pip | `pip install kllm-gateway` |
 
    The one-line installers set up [uv](https://docs.astral.sh/uv/), which brings its own Python, so nothing
    else needs to be installed first.
+   The package is called `kllm-gateway` on PyPI; the commands it installs are `kllm` and `claude-kllm`.
 3. **Run:**
 ```bash
 kllm up                    # first run writes the config; starts the default model, ready in ~8-10 min
@@ -320,7 +321,7 @@ time (a lock in `state/`), so mixing them is safe but pointless — don't run tw
 | `models.yaml` | model registry (sampling and llama-server flags per model) |
 | `templates/` | patched chat templates shipped to kernels |
 | `bin/claude-kllm` | Claude Code launcher (bash version; the installed `claude-kllm` is the Python one) |
-| `pyproject.toml` | package metadata (`pipx install kllm` / `uv tool install kllm`); deps: fastapi, uvicorn, httpx, pyyaml, kaggle |
+| `pyproject.toml` | package metadata (PyPI name `kllm-gateway`; commands `kllm`, `claude-kllm`); deps: fastapi, uvicorn, httpx, pyyaml, kaggle |
 | `clients/opencode.jsonc` | opencode provider |
 | `tests/` | unit tests: loop guard, scheduler, rendezvous (ntfy + gist), accounts, gateway key, init, service files, diffusers kernel (fake pipeline), media relay, kllm add |
 

@@ -1,8 +1,8 @@
 name: release
 
-# Push a tag like v0.3.0 to publish that version to PyPI (then: pipx install kllm / uv tool install kllm).
+# Push a tag like v0.3.0 to publish that version to PyPI (then: pipx install kllm-gateway / uv tool install kllm-gateway).
 # Uses PyPI trusted publishing: no API token is stored in this repository. One-time setup on pypi.org:
-#   Account -> Publishing -> Add a pending publisher: project "kllm", owner "SANTHAN-KUMAR",
+#   Account -> Publishing -> Add a pending publisher: project "kllm-gateway", owner "SANTHAN-KUMAR",
 #   repository "kllm", workflow "release.yml", environment "pypi".
 on:
   push:

@@ -2,7 +2,7 @@
 #   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/SANTHAN-KUMAR/kllm/main/install.ps1 | iex"
 # Installs uv if needed (it brings its own Python), then kllm as an isolated tool: `kllm` and `claude-kllm`.
 # Run from a checkout (.\install.ps1 or install.bat) it installs that checkout instead. Never launches a Kaggle GPU.
-# Already have Python? `pipx install kllm` or `uv tool install kllm` does the same.
+# Already have Python? `pipx install kllm-gateway` or `uv tool install kllm-gateway` does the same.
 # "Continue", not "Stop": uv prints progress on stderr, which Windows PowerShell 5.1 would turn into a terminating
 # error. Native commands are checked through $LASTEXITCODE instead.
 $ErrorActionPreference = "Continue"
@@ -17,11 +17,11 @@ $here = $null
 if ($PSScriptRoot) { $here = $PSScriptRoot }
 $pyproject = if ($here) { Join-Path $here "pyproject.toml" } else { $null }
 
-if ($pyproject -and (Test-Path $pyproject) -and (Select-String -Path $pyproject -Pattern '^name = "kllm"' -Quiet)) {
+if ($pyproject -and (Test-Path $pyproject) -and (Select-String -Path $pyproject -Pattern '^name = "kllm-gateway"' -Quiet)) {
     Write-Host "kllm: installing from this checkout: $here"
     uv tool install --force --editable "$here"
 } else {
-    $src = if ($env:KLLM_SOURCE) { $env:KLLM_SOURCE } else { "kllm" }
+    $src = if ($env:KLLM_SOURCE) { $env:KLLM_SOURCE } else { "kllm-gateway" }
     Write-Host "kllm: installing $src ..."
     uv tool install --force $src
     if ($LASTEXITCODE -ne 0) { uv tool install --force "git+https://github.com/SANTHAN-KUMAR/kllm" }

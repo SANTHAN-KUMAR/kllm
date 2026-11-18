@@ -33,7 +33,7 @@ def prerequisites(network=True):
         pass
     have = bool(importlib.util.find_spec("kaggle")) or bool(cmd and len(cmd) == 1)
     out.append(("kaggle CLI", have, " ".join(cmd[:1]) if have and cmd else "not found",
-                "pip install kaggle   (or: pipx install kllm / uv tool install kllm, which pulls it in)"))
+                "pip install kaggle   (or: pipx install kllm-gateway / uv tool install kllm-gateway, which pulls it in)"))
     if network:
         out.append(("network: ntfy.sh", _reachable("https://ntfy.sh/v1/health"), "",
                     "kernels report their URL through ntfy.sh (set ntfy_server for your own); check your connection/proxy"))

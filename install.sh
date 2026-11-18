@@ -3,7 +3,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/SANTHAN-KUMAR/kllm/main/install.sh | sh
 # Installs uv if needed (it brings its own Python), then kllm as an isolated tool: `kllm` and `claude-kllm`.
 # Run from a checkout (./install.sh) it installs that checkout instead. Never launches a Kaggle GPU.
-# Already have Python? `pipx install kllm` or `uv tool install kllm` does the same.
+# Already have Python? `pipx install kllm-gateway` or `uv tool install kllm-gateway` does the same.
 set -eu
 
 say() { printf '%s\n' "$*"; }
@@ -22,11 +22,11 @@ if [ -n "${0:-}" ] && [ -f "$0" ]; then
   HERE="$(cd "$(dirname "$0")" && pwd)"
 fi
 
-if [ -n "$HERE" ] && [ -f "$HERE/pyproject.toml" ] && grep -q '^name = "kllm"' "$HERE/pyproject.toml"; then
+if [ -n "$HERE" ] && [ -f "$HERE/pyproject.toml" ] && grep -q '^name = "kllm-gateway"' "$HERE/pyproject.toml"; then
   say "kllm: installing from this checkout: $HERE"
   uv tool install --force --editable "$HERE"
 else
-  SRC="${KLLM_SOURCE:-kllm}"
+  SRC="${KLLM_SOURCE:-kllm-gateway}"
   say "kllm: installing $SRC ..."
   uv tool install --force "$SRC" || uv tool install --force "git+https://github.com/SANTHAN-KUMAR/kllm"
 fi

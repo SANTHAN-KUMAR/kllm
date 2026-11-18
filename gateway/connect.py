@@ -355,7 +355,7 @@ def setup(tool, what="models", relay="http://127.0.0.1:8080"):
             return "claude-kllm is already installed."
         src = common.PKG_ROOT / "bin" / "claude-kllm"
         if os.name != "nt" and not src.exists():
-            raise SetupError("This install has no bin/claude-kllm: run `pip install kllm`, which installs claude-kllm.")
+            raise SetupError("This install has no bin/claude-kllm: run `pip install kllm-gateway`, which installs claude-kllm.")
         P["bin"].mkdir(parents=True, exist_ok=True)
         dst = _launcher(P["bin"])
         if dst.exists() or dst.is_symlink():

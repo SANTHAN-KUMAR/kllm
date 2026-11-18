@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "kllm"
+name = "kllm-gateway"          # PyPI name ("kllm" is taken by a look-alike); the commands are kllm and claude-kllm
 version = "0.3.0"
 description = "Open-weight LLMs on free Kaggle GPUs, served as a local OpenAI/Anthropic API for coding agents"
 readme = "README.md"
