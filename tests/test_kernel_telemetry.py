@@ -1,5 +1,5 @@
 """Kernel resource sampler: the fields the panel's Resources tab reads, and download progress reporting."""
-import pathlib, sys, types
+import pathlib, sys, time, types
 
 import pytest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -16,6 +16,7 @@ def test_sample_has_cpu_net_disk_after_two_reads():
     mod._gpu_stats = lambda: []
     first = mod._telemetry_sample()
     assert "cpu_pct" not in first and "disk" in first           # rates need a previous read
+    time.sleep(0.3)                                              # /proc/stat ticks at 100 Hz: let some pass
     second = mod._telemetry_sample()
     assert 0.0 <= second["cpu_pct"] <= 100.0
     assert second["net_rx_bps"] >= 0 and second["net_tx_bps"] >= 0

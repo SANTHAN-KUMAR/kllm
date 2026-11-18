@@ -242,15 +242,22 @@ class Manager:
                 raise AgentError("no such playbook", 404)
             g.update(playbook.get("guardrails") or {})
         lead = body.get("lead") or (playbook or {}).get("lead")
-        harness = body.get("harness") or (lead or {}).get("harness") or "opencode"
+        steps = body.get("steps") or ((playbook or {}).get("flow") or {}).get("steps") or []
+        pb_workers = (playbook or {}).get("workers") or []
+        # The session's default harness: the one asked for, else the one its own workers/steps use, else opencode.
+        # (Never require opencode when every worker or step names another harness.)
+        harness = (body.get("harness") or (lead or {}).get("harness")
+                   or next((x.get("harness") for x in [*pb_workers, *steps] if isinstance(x, dict) and x.get("harness")), None)
+                   or "opencode")
         flow = None
         if mode == "flow" or (playbook or {}).get("flow"):
-            flow = self.validate_flow(body.get("steps") or ((playbook or {}).get("flow") or {}).get("steps"), perm)
+            flow = self.validate_flow(steps, perm)          # validates each step's own harness
             mode, lead = "flow", None
         if mode == "team" and not lead:
             lead = {"harness": harness, "model": body.get("model")}
-        self._validate_harness((lead or {}).get("harness") or harness, perm)
-        for w in (playbook or {}).get("workers") or []:
+        if not flow and (lead or not pb_workers):
+            self._validate_harness((lead or {}).get("harness") or harness, perm)
+        for w in pb_workers:
             self._validate_harness(w.get("harness") or harness, perm)
         cwd = os.path.expanduser(str(body.get("cwd") or common.ROOT))
         if not os.path.isdir(cwd):

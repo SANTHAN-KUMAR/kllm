@@ -31,7 +31,7 @@ dependencies = [
 
 [project.optional-dependencies]
 litellm = ["litellm[proxy]"]     # optional extra: LiteLLM proxy in front of the relay
-dev = ["pytest>=8", "anyio", "jsonschema", "jinja2", "numpy", "websockets", "pillow"]
+dev = ["pytest>=8", "pytest-timeout", "anyio", "jsonschema", "jinja2", "numpy", "websockets", "pillow"]
 
 [project.urls]
 Homepage = "https://github.com/SANTHAN-KUMAR/kllm"
