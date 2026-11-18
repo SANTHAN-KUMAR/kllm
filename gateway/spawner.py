@@ -416,6 +416,27 @@ def _posix_shell() -> Optional[str]:
     return None
 
 
+def _kill_tree(proc) -> None:
+    """Kill a subprocess and everything it started (its process group on POSIX)."""
+    if proc is None or proc.returncode is not None:
+        return
+    if os.name == "nt":
+        # Windows has no process groups: taskkill /T takes the children too (Git Bash runs `sleep` etc. as
+        # child processes that would otherwise keep the output pipe open).
+        try:
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, timeout=15)
+            return
+        except Exception:
+            pass
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
 async def _shell(cmd: str, **kw):
     """create_subprocess_shell, but through POSIX bash on Windows when Git Bash is installed (cmd.exe otherwise)."""
     bash = _posix_shell()
@@ -839,15 +860,13 @@ class ShellDriver(BaseHarnessDriver):
             exit_code = proc.returncode or 0
             return exit_code, raw_output, 0
         except asyncio.TimeoutError:
-            try:
-                pgid = os.getpgid(proc.pid)
-                os.killpg(pgid, signal.SIGKILL)
-            except Exception:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
+            _kill_tree(proc)
             return -1, f"Shell subagent timed out after {timeout} seconds.", 0
+        except asyncio.CancelledError:
+            # Cancelled (kllm cancel, or the event loop shutting down): the child must die with the task, or it
+            # keeps the pipes open and the cancelled communicate() never finishes (hangs on Python 3.12).
+            _kill_tree(proc)
+            raise
 
 
 class OpenCodeDriver(BaseHarnessDriver):
@@ -1060,6 +1079,12 @@ class FleetManager:
             return res.to_dict()
         else:
             session.task = asyncio.create_task(_run_session())
+            # Return only once the harness process exists (or the task ended). A caller whose event loop closes
+            # right after this (a CLI fallback, a test) then cancels a running process, which the drivers kill
+            # cleanly, instead of a half-created one, which hangs asyncio on Python 3.12.
+            deadline = time.time() + 15
+            while session.process is None and not session.task.done() and time.time() < deadline:
+                await asyncio.sleep(0.02)
             return {
                 "subagent_id": subagent_id,
                 "harness": harness,
