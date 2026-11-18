@@ -1,12 +1,13 @@
 name: pages
 
 # Publishes site/ (self-contained: HTML, fonts, images) to GitHub Pages. With a custom domain, put it in site/CNAME.
-# One-time setup once the repository is public: Settings -> Pages -> Source: GitHub Actions, then run this
-# workflow from the Actions tab. After that it runs on every release.
+# Deploys whenever site/ changes on main (the github-pages environment only accepts main, not release tags),
+# or on demand from the Actions tab.
 on:
   workflow_dispatch:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/pages.yml"]
 
 permissions:
   contents: read
