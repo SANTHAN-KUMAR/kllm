@@ -6,11 +6,13 @@
 
 <p align="center">
   <a href="https://github.com/SANTHAN-KUMAR/kllm/actions/workflows/tests.yml"><img alt="tests" src="https://github.com/SANTHAN-KUMAR/kllm/actions/workflows/tests.yml/badge.svg"></a>
-  <a href="https://pypi.org/project/kllm-gateway/"><img alt="PyPI" src="https://img.shields.io/pypi/v/kllm-gateway?label=pypi%20kllm-gateway"></a>
+  <a href="https://pypi.org/project/kllm-gateway/"><img alt="PyPI" src="https://img.shields.io/pypi/v/kllm-gateway?label=pypi&color=blue&cacheSeconds=3600"></a>
   <img alt="Python 3.10 to 3.13" src="https://img.shields.io/badge/python-3.10%20to%203.13-3776ab">
   <img alt="Linux, macOS, Windows" src="https://img.shields.io/badge/os-linux%20%7C%20macos%20%7C%20windows-555">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-green"></a>
+  <!-- add back once the repo is public (shields.io cannot see private repos):
   <a href="https://github.com/SANTHAN-KUMAR/kllm/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/SANTHAN-KUMAR/kllm?style=social"></a>
+  -->
 </p>
 
 **kllm runs open-weight LLMs on Kaggle's free GPUs and gives your coding tools a local API for them.**
