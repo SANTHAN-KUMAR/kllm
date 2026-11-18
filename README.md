@@ -10,9 +10,7 @@
   <img alt="Python 3.10 to 3.13" src="https://img.shields.io/badge/python-3.10%20to%203.13-3776ab">
   <img alt="Linux, macOS, Windows" src="https://img.shields.io/badge/os-linux%20%7C%20macos%20%7C%20windows-555">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-green"></a>
-  <!-- add back once the repo is public (shields.io cannot see private repos):
-  <a href="https://github.com/SANTHAN-KUMAR/kllm/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/SANTHAN-KUMAR/kllm?style=social"></a>
-  -->
+  <a href="https://github.com/SANTHAN-KUMAR/kllm/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/SANTHAN-KUMAR/kllm?style=social&cacheSeconds=3600"></a>
 </p>
 
 **kllm runs open-weight LLMs on Kaggle's free GPUs and gives your coding tools a local API for them.**

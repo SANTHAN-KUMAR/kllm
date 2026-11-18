@@ -44,7 +44,7 @@ litellm = ["litellm[proxy]"]     # optional extra: LiteLLM proxy in front of the
 dev = ["pytest>=8", "pytest-timeout", "anyio", "jsonschema", "jinja2", "numpy", "websockets", "pillow"]
 
 [project.urls]
-Homepage = "https://github.com/SANTHAN-KUMAR/kllm"
+Homepage = "https://santhan-kumar.github.io/kllm/"
 Source = "https://github.com/SANTHAN-KUMAR/kllm"
 Documentation = "https://github.com/SANTHAN-KUMAR/kllm#readme"
 Changelog = "https://github.com/SANTHAN-KUMAR/kllm/blob/main/CHANGELOG.md"
