@@ -58,3 +58,5 @@ docs/redesign/*
 # README images
 !docs/assets/
 !docs/assets/**
+!site/assets/
+!site/assets/**
