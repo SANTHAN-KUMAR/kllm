@@ -16,15 +16,29 @@ class GitError(Exception):
     pass
 
 
-def git(cwd, *args, env=None, input=None, check=True, timeout=120):
+def run_git(cwd, args, env=None, input=None, timeout=120):
+    """-> (returncode, stdout bytes, stderr bytes). Input and output go through temporary files, not pipes.
+
+    On Windows a pipe handle can leak into another process that starts at the same moment (an agent harness
+    spawned by the event loop). git then finishes but its output pipe stays open as long as that process lives,
+    and reading it never ends: the session froze. A file has no end-of-output to wait for."""
     e = dict(os.environ, **GIT_ENV, **(env or {}))
-    # never inherit our stdin: under a service, an MCP pipe or a test runner it can block git
-    extra = {} if input is not None else {"stdin": subprocess.DEVNULL}
-    p = subprocess.run(["git", *args], cwd=str(cwd), env=e, input=input, capture_output=True, text=True,
-                       timeout=timeout, **extra)
-    if check and p.returncode != 0:
-        raise GitError((p.stderr or p.stdout).strip()[:800] or f"git {' '.join(args)} failed")
-    return p.stdout
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryFile() as inp:
+        if input is not None:
+            inp.write(input.encode("utf-8") if isinstance(input, str) else input)
+            inp.seek(0)
+        p = subprocess.run(["git", *args], cwd=str(cwd), env=e, stdin=inp, stdout=out, stderr=err, timeout=timeout)
+        out.seek(0); err.seek(0)
+        return p.returncode, out.read(), err.read()
+
+
+def git(cwd, *args, env=None, input=None, check=True, timeout=120):
+    code, out, err = run_git(cwd, args, env=env, input=input, timeout=timeout)
+    out = out.decode("utf-8", "replace").replace("\r\n", "\n")
+    if check and code != 0:
+        msg = (err.decode("utf-8", "replace") or out).strip()[:800]
+        raise GitError(msg or f"git {' '.join(args)} failed")
+    return out
 
 
 def repo_root(path):
@@ -178,24 +192,21 @@ def apply_commit(repo, cwd, base, message):
     if tree == tree_of(cwd, base):
         raise GitError("there are no changes to apply")
     # bytes, not text: a text-mode pipe on Windows rewrites \n as \r\n and the patch no longer applies
-    d = subprocess.run(["git", "diff", "--binary", "--no-renames", base, tree], cwd=str(cwd), capture_output=True, stdin=subprocess.DEVNULL,
-                       env=dict(os.environ, **GIT_ENV), timeout=120)
-    if d.returncode != 0:
-        raise GitError(d.stderr.decode("utf-8", "replace").strip()[:800] or "git diff failed")
-    patch = d.stdout
+    code, patch, err = run_git(cwd, ["diff", "--binary", "--no-renames", base, tree])
+    if code != 0:
+        raise GitError(err.decode("utf-8", "replace").strip()[:800] or "git diff failed")
     files = changed_files(cwd, base, tree)
     dirty = [f for f in git(repo, "status", "--porcelain", "--", *files).splitlines() if f.strip()]
     if dirty:
         raise GitError("the main checkout has uncommitted changes in " + ", ".join(x[3:] for x in dirty[:6])
                        + ": commit or stash them, or apply to a new branch")
-    p = subprocess.run(["git", "apply", "--3way", "--index", "-"], cwd=str(repo), input=patch,
-                       capture_output=True, env=dict(os.environ, **GIT_ENV))
-    p.stderr = p.stderr.decode("utf-8", "replace")
-    if p.returncode != 0:
+    code, _, err = run_git(repo, ["apply", "--3way", "--index", "-"], input=patch)
+    apply_err = err.decode("utf-8", "replace")
+    if code != 0:
         git(repo, "reset", "-q", "--", *files, check=False)
         git(repo, "checkout", "--", *files, check=False)
         git(repo, "clean", "-fq", "--", *files, check=False)     # these paths were clean before: only new files go
         raise GitError("the changes conflict with the current branch: apply them to a new branch instead. "
-                       + (p.stderr or "").strip()[:300])
+                       + apply_err.strip()[:300])
     git(repo, "commit", "-q", "-m", message, "--", *files)
     return head(repo)
