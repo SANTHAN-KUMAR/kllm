@@ -58,7 +58,7 @@ async def test_full_6_node_swarm_ring_end_to_end():
     # Run multi-token generation through the 6-stage pipeline
     num_tokens_to_generate = 20
     generated_tokens = []
-    t_start = time.time()
+    t_start = time.perf_counter()   # time.time() ticks every ~15 ms on Windows
 
     req_id = uuid.uuid4()
     prompt_tokens = [101, 205, 309]
@@ -119,7 +119,7 @@ async def test_full_6_node_swarm_ring_end_to_end():
             next_hdr = SwarmFrameHeader(req_id, 1, step + 1, stage_idx=0, total_stages=total_stages, num_tokens=1, hidden_dim=hidden_dim, pos_offset=len(prompt_tokens) + step, flags=FLAG_ACTIVATION)
             await packet_switch.forward_frame(pack_activation_frame(next_hdr, next_q8))
 
-    elapsed = time.time() - t_start
+    elapsed = max(time.perf_counter() - t_start, 1e-6)
     gen_speed = len(generated_tokens) / elapsed
 
     print(f"\n[Swarm E2E Benchmark] Generated {len(generated_tokens)} tokens through 6 stages in {elapsed:.3f}s -> {gen_speed:.1f} tok/s")
@@ -479,7 +479,7 @@ async def test_compressed_2_stage_pipeline_benchmark():
 
     req_id = uuid.uuid4()
     num_steps = 30
-    t0 = time.time()
+    t0 = time.perf_counter()
 
     for step in range(num_steps):
         # Stage 0 sends activation to Stage 1
@@ -504,7 +504,7 @@ async def test_compressed_2_stage_pipeline_benchmark():
         toks, _ = unpack_token_payload(p0)
         assert toks == [tok]
 
-    elapsed = time.time() - t0
+    elapsed = max(time.perf_counter() - t0, 1e-6)
     tok_per_sec = num_steps / elapsed
     print(f"\n[2-Stage Compressed Pipeline] {num_steps} steps in {elapsed:.3f}s -> {tok_per_sec:.1f} tok/s")
     assert tok_per_sec >= 40.0

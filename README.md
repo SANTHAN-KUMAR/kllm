@@ -32,9 +32,20 @@ The only thing you need is a Kaggle API token. Everything else is created for yo
    kaggle.com → Settings → API → *Create New Token*, and save the file as `~/.kaggle/kaggle.json`
    (or `~/.kaggle/access_token` for the newer token format; `KAGGLE_USERNAME`/`KAGGLE_KEY` or
    `KAGGLE_API_TOKEN` in your environment also work).
-2. **Install and run:**
+2. **Install** with one command:
+
+   | you have | run |
+   |---|---|
+   | nothing (Linux / macOS) | `curl -fsSL https://raw.githubusercontent.com/SANTHAN-KUMAR/kllm/main/install.sh \| sh` |
+   | nothing (Windows) | `powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/SANTHAN-KUMAR/kllm/main/install.ps1 \| iex"` |
+   | uv | `uv tool install kllm` (or try it without installing: `uvx kllm doctor`) |
+   | pipx | `pipx install kllm` |
+   | pip | `pip install kllm` |
+
+   The one-line installers set up [uv](https://docs.astral.sh/uv/), which brings its own Python, so nothing
+   else needs to be installed first.
+3. **Run:**
 ```bash
-pipx install git+https://github.com/SANTHAN-KUMAR/kllm   # or: uv tool install ..., or pipx install . from a checkout
 kllm up                    # first run writes the config; starts the default model, ready in ~8-10 min
 claude-kllm                # Claude Code on it (model + context window picked automatically)
 ```
@@ -309,7 +320,7 @@ time (a lock in `state/`), so mixing them is safe but pointless — don't run tw
 | `models.yaml` | model registry (sampling and llama-server flags per model) |
 | `templates/` | patched chat templates shipped to kernels |
 | `bin/claude-kllm` | Claude Code launcher (bash version; the installed `claude-kllm` is the Python one) |
-| `pyproject.toml` | `pipx install .` / `uv tool install .`; deps: fastapi, uvicorn, httpx, pyyaml, kaggle |
+| `pyproject.toml` | package metadata (`pipx install kllm` / `uv tool install kllm`); deps: fastapi, uvicorn, httpx, pyyaml, kaggle |
 | `clients/opencode.jsonc` | opencode provider |
 | `tests/` | unit tests: loop guard, scheduler, rendezvous (ntfy + gist), accounts, gateway key, init, service files, diffusers kernel (fake pipeline), media relay, kllm add |
 

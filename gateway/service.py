@@ -74,8 +74,8 @@ def launchd_plist(root, python=None, pkg_root=None, home=None):
         "RunAtLoad": True,
         "KeepAlive": True,
         "ProcessType": "Background",
-        "StandardOutPath": f"{str(root).replace('\\\\', '/')}/logs/serve.log".replace("\\", "/"),
-        "StandardErrorPath": f"{str(root).replace('\\\\', '/')}/logs/serve.log".replace("\\", "/"),
+        "StandardOutPath": (str(root) + "/logs/serve.log").replace("\\", "/"),
+        "StandardErrorPath": (str(root) + "/logs/serve.log").replace("\\", "/"),
     })
 
 
