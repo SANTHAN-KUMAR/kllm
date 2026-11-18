@@ -5,12 +5,15 @@ kllm ships a registry of models in `models.yaml` and can add any GGUF or diffuse
 ## Which chat model should I use?
 | key | what | context | measured on 2×T4 |
 |---|---|---|---|
+| **qwen3.8-27b** (+ `-vision`, `-abliterated`, `-256k` variants) | Qwen3.8-27B dense, thinking; highest answer quality | 128K (256K variants) | 16 to 19 t/s median over 6,889 real requests (99.3% success, up to 190K context) |
 | **qwen3.6-35b-abliterated** (default) | Qwen3.6-35B-A3B MoE, thinking | **256K** | 70 t/s short · 54 t/s @ 90K · 43 t/s @ 209K |
 | qwen3-coder-30b-abliterated | Qwen3-Coder-30B-A3B MoE, no thinking | 96K | 84 t/s short · 48 t/s @ 43K · 35 t/s @ 84K |
 | gpt-oss-20b-abliterated | gpt-oss-20B MoE, reasoning | 128K | unverified |
 | qwen3-30b-a3b / qwen3-32b / qwq-32b / r1-distill-32b / coder-32b (abliterated) | older dense/MoE | 32K | unverified |
 
 Which one?
+- **Best answers:** `qwen3.8-27b`. A dense 27B, so it decodes at 16 to 19 t/s instead of 40+, but it was the
+  daily driver for over 6,800 requests. Pick `qwen3.8-27b-vision-abliterated-256k` to paste screenshots and keep 256K of context.
 - **Quality first, long sessions:** `qwen3.6-35b-abliterated`. In a 4-turn Claude Code session that
   grew past 55K tokens it gave the most precise code summaries and perfect recall of early context.
   It thinks before answering, so short replies take a few seconds longer.

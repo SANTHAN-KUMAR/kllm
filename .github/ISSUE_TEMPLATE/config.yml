@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/SANTHAN-KUMAR/kllm/discussions
+    about: Setup help, ideas and show-and-tell go to Discussions.
+  - name: Security vulnerability
+    url: https://github.com/SANTHAN-KUMAR/kllm/security/advisories/new
+    about: Report privately, not in a public issue.

@@ -18,19 +18,40 @@ class GitError(Exception):
 
 def git(cwd, *args, env=None, input=None, check=True, timeout=120):
     e = dict(os.environ, **GIT_ENV, **(env or {}))
+    # never inherit our stdin: under a service, an MCP pipe or a test runner it can block git
+    extra = {} if input is not None else {"stdin": subprocess.DEVNULL}
     p = subprocess.run(["git", *args], cwd=str(cwd), env=e, input=input, capture_output=True, text=True,
-                       timeout=timeout)
+                       timeout=timeout, **extra)
     if check and p.returncode != 0:
         raise GitError((p.stderr or p.stdout).strip()[:800] or f"git {' '.join(args)} failed")
     return p.stdout
 
 
 def repo_root(path):
-    """Top of the git checkout that contains path, or None."""
+    """Top of the git checkout that contains path, or None.
+
+    Found by walking up to the nearest `.git` (a directory in a normal checkout, a file in a worktree or
+    submodule), which is what `git rev-parse --show-toplevel` reports. No subprocess: this runs on every
+    permission check, and on Windows a git process occasionally stalls (ownership checks), which froze sessions."""
     try:
-        return pathlib.Path(git(path, "rev-parse", "--show-toplevel").strip())
-    except (GitError, FileNotFoundError, NotADirectoryError, OSError):
+        p = pathlib.Path(path).resolve()
+    except OSError:
         return None
+    if not p.exists():
+        return None
+    if p.is_file():
+        p = p.parent
+    for d in (p, *p.parents):
+        g = d / ".git"
+        if g.is_dir() and (g / "HEAD").exists():
+            return d
+        if g.is_file():
+            try:
+                if g.read_text(encoding="utf-8", errors="replace").startswith("gitdir:"):
+                    return d
+            except OSError:
+                pass
+    return None
 
 
 def head(cwd):
@@ -157,7 +178,7 @@ def apply_commit(repo, cwd, base, message):
     if tree == tree_of(cwd, base):
         raise GitError("there are no changes to apply")
     # bytes, not text: a text-mode pipe on Windows rewrites \n as \r\n and the patch no longer applies
-    d = subprocess.run(["git", "diff", "--binary", "--no-renames", base, tree], cwd=str(cwd), capture_output=True,
+    d = subprocess.run(["git", "diff", "--binary", "--no-renames", base, tree], cwd=str(cwd), capture_output=True, stdin=subprocess.DEVNULL,
                        env=dict(os.environ, **GIT_ENV), timeout=120)
     if d.returncode != 0:
         raise GitError(d.stderr.decode("utf-8", "replace").strip()[:800] or "git diff failed")

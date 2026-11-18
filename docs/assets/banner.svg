@@ -1,72 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" width="1280" height="400" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 380" width="1280" height="380" role="img" aria-labelledby="t d">
   <title id="t">kllm</title>
-  <desc id="d">Your coding tools on your PC talk to a local relay; the relay forwards to a model running on two Tesla T4 GPUs in a Kaggle notebook.</desc>
+  <desc id="d">kllm: free GPUs for your coding agent. Install with pipx install kllm-gateway. OpenAI and Anthropic API on localhost.</desc>
   <defs>
-    <radialGradient id="glow" cx="30%" cy="0%" r="90%">
-      <stop offset="0" stop-color="#1d2433"/>
-      <stop offset="1" stop-color="#0a0a0b"/>
+    <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M64 0H0V64" fill="none" stroke="#151515" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="fade" cx="32%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#0a0a0a" stop-opacity="0"/>
+      <stop offset=".75" stop-color="#0a0a0a" stop-opacity="1"/>
     </radialGradient>
-    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1a1a1d"/>
-      <stop offset="1" stop-color="#0f0f11"/>
-    </linearGradient>
-    <linearGradient id="wire" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#8cc8ff" stop-opacity=".15"/>
-      <stop offset=".5" stop-color="#8cc8ff" stop-opacity=".9"/>
-      <stop offset="1" stop-color="#8cc8ff" stop-opacity=".15"/>
-    </linearGradient>
     <style>
-      .h { font: 700 64px "Inter Tight", "Segoe UI", system-ui, sans-serif; fill: #ededee; letter-spacing: -2px; }
-      .s { font: 400 22px "Segoe UI", system-ui, sans-serif; fill: rgba(237,237,238,.62); }
-      .l { font: 600 15px "Segoe UI", system-ui, sans-serif; fill: #ededee; }
-      .m { font: 400 13px ui-monospace, "Cascadia Code", Menlo, monospace; fill: rgba(237,237,238,.55); }
-      .k { font: 600 12px ui-monospace, "Cascadia Code", Menlo, monospace; letter-spacing: 1.5px; fill: rgba(237,237,238,.45); }
-      .pulse { animation: p 2.4s linear infinite; }
-      @keyframes p { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } }
-      @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+      .w { font: 600 30px "Geist", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif; fill: #ededed; letter-spacing: -.5px; }
+      .h { font: 600 78px "Geist", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif; fill: #ededed; letter-spacing: -3.6px; }
+      .c { font: 500 22px "Geist Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; fill: #ededed; }
+      .p { fill: #5c5c5c; }
+      .m { font: 500 18px "Geist Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; fill: #8f8f8f; }
     </style>
   </defs>
-  <rect width="1280" height="400" rx="24" fill="url(#glow)"/>
-  <rect x="0.5" y="0.5" width="1279" height="399" rx="24" fill="none" stroke="rgba(255,255,255,.08)"/>
+  <rect width="1280" height="380" rx="20" fill="#0a0a0a"/>
+  <rect width="1280" height="380" rx="20" fill="url(#grid)"/>
+  <rect width="1280" height="380" rx="20" fill="url(#fade)"/>
+  <rect x=".5" y=".5" width="1279" height="379" rx="20" fill="none" stroke="#1f1f1f"/>
 
-  <text x="64" y="118" class="h">kllm</text>
-  <text x="64" y="160" class="s">Open-weight LLMs on free Kaggle GPUs,</text>
-  <text x="64" y="190" class="s">served as a local API for your coding agents.</text>
-
-  <!-- your PC -->
-  <g transform="translate(64 236)">
-    <rect width="300" height="120" rx="16" fill="url(#card)" stroke="rgba(255,255,255,.10)"/>
-    <text x="20" y="30" class="k">YOUR PC</text>
-    <text x="20" y="60" class="l">Claude Code · opencode · Cursor</text>
-    <text x="20" y="84" class="m">any OpenAI or Anthropic client</text>
-    <text x="20" y="104" class="m">no GPU needed</text>
+  <g transform="translate(72 58)">
+    <rect x="0" y="2" width="9" height="30" rx="4.5" fill="#ededed"/>
+    <rect x="15.5" y="4" width="16" height="26" rx="6" fill="none" stroke="#8cc8ff" stroke-width="4.5"/>
+    <text x="46" y="28" class="w">kllm</text>
   </g>
 
-  <!-- relay -->
-  <g transform="translate(486 236)">
-    <rect width="260" height="120" rx="16" fill="url(#card)" stroke="rgba(140,200,255,.45)"/>
-    <text x="20" y="30" class="k">KLLM RELAY</text>
-    <text x="20" y="60" class="l">127.0.0.1:8080</text>
-    <text x="20" y="84" class="m">one process, ~55 MB</text>
-    <text x="20" y="104" class="m">picks, starts, rotates GPUs</text>
-  </g>
+  <text x="68" y="188" class="h">Free GPUs for your coding agent.</text>
 
-  <!-- kaggle -->
-  <g transform="translate(868 236)">
-    <rect width="348" height="120" rx="16" fill="url(#card)" stroke="rgba(185,170,255,.45)"/>
-    <text x="20" y="30" class="k">KAGGLE NOTEBOOK</text>
-    <g transform="translate(20 46)">
-      <rect width="146" height="56" rx="10" fill="rgba(94,224,160,.08)" stroke="rgba(94,224,160,.5)"/>
-      <text x="14" y="24" class="l">Tesla T4</text>
-      <text x="14" y="44" class="m">16 GB</text>
-      <rect x="162" width="146" height="56" rx="10" fill="rgba(94,224,160,.08)" stroke="rgba(94,224,160,.5)"/>
-      <text x="176" y="24" class="l">Tesla T4</text>
-      <text x="176" y="44" class="m">16 GB</text>
-    </g>
+  <g transform="translate(72 248)">
+    <rect width="404" height="58" rx="10" fill="#111111" stroke="#2e2e2e"/>
+    <text x="22" y="37" class="c"><tspan class="p">$ </tspan>pipx install kllm-gateway</text>
   </g>
-
-  <!-- wires -->
-  <path d="M368 296 H482" stroke="url(#wire)" stroke-width="2.5" fill="none" stroke-dasharray="6 4" class="pulse"/>
-  <path d="M750 296 H864" stroke="url(#wire)" stroke-width="2.5" fill="none" stroke-dasharray="6 4" class="pulse"/>
-  <text x="768" y="284" class="m">tunnel</text>
+  <text x="1208" y="272" class="m" text-anchor="end">OpenAI and Anthropic API on localhost</text>
+  <text x="1208" y="300" class="m" text-anchor="end">Claude Code · opencode · any OpenAI client</text>
 </svg>

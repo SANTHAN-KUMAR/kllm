@@ -1,5 +1,7 @@
+<h1 align="center">kllm: free GPU LLMs for Claude Code, opencode and any OpenAI client</h1>
+
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="kllm: your coding tools talk to a local relay, which runs the model on two Tesla T4 GPUs in a Kaggle notebook" width="100%">
+  <img src="docs/assets/banner.svg" alt="kllm: free GPUs for your coding agent. pipx install kllm-gateway. OpenAI and Anthropic API on localhost" width="100%">
 </p>
 
 <p align="center">
@@ -8,14 +10,32 @@
   <img alt="Python 3.10 to 3.13" src="https://img.shields.io/badge/python-3.10%20to%203.13-3776ab">
   <img alt="Linux, macOS, Windows" src="https://img.shields.io/badge/os-linux%20%7C%20macos%20%7C%20windows-555">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-green"></a>
+  <a href="https://github.com/SANTHAN-KUMAR/kllm/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/SANTHAN-KUMAR/kllm?style=social"></a>
 </p>
 
 **kllm runs open-weight LLMs on Kaggle's free GPUs and gives your coding tools a local API for them.**
+It serves Qwen and other GGUF models (including abliterated ones) through llama.cpp on two free Tesla T4s,
+behind an OpenAI and Anthropic compatible endpoint on `127.0.0.1`. No local GPU, no API bill.
 
 Your laptop has no GPU. You still want Claude Code to refactor a 2,000-line module on a 35B model, with a
 256K context window, without paying per token. With kllm you install one package, paste a Kaggle token once,
 and run `claude-kllm`. Ten minutes later the model is answering from two Tesla T4s in a Kaggle notebook, and
 Claude Code talks to it as if it were running on `127.0.0.1`.
+
+### Six weeks of daily use, from the request log
+
+<table align="center">
+  <tr>
+    <td align="center"><h3>15,481</h3>requests</td>
+    <td align="center"><h3>98.95%</h3>succeeded</td>
+    <td align="center"><h3>750M</h3>prompt tokens</td>
+    <td align="center"><h3>89.8%</h3>served from cache</td>
+    <td align="center"><h3>395K</h3>largest context</td>
+  </tr>
+</table>
+
+<p align="center"><sub>One developer's coding sessions with Claude Code and opencode, Oct 6 to Nov 16 2026: 18.1M output tokens,
+2,465 requests above 100K tokens of context, median time to first token 4.1 s, 12 runaway loops cut by the guard.</sub></p>
 
 That raises a few questions, answered below:
 
@@ -92,13 +112,17 @@ prompt came from the cache at 55K tokens of context. Details are in [How kllm wo
 
 ## Which models can I run, and how fast are they?
 
-Two models are measured end to end on two T4s. The panel lists 46 models in all, and adds any GGUF or
-diffusers repo from Hugging Face.
+These three are measured on two T4s, in benchmarks and in daily use. The panel lists 46 models in all, and
+adds any GGUF or diffusers repo from Hugging Face.
 
-| Model | Best for | Context | Measured speed |
-| --- | --- | --- | --- |
-| `qwen3.6-35b-abliterated` (default) | Long agent sessions; thinks before answering | 256K | 70 tok/s short, 43 tok/s at 209K |
-| `qwen3-coder-30b-abliterated` | Fastest turnaround, no thinking | 96K | 84 tok/s short, 35 tok/s at 84K |
+| Model | Best for | Context | Measured speed | Real requests |
+| --- | --- | --- | --- | --- |
+| `qwen3.8-27b` (and its `-vision`, `-abliterated`, `-256k` variants) | Highest answer quality; dense 27B; the vision variant reads screenshots | 128K, or 256K | 16 to 19 tok/s | 6,889 at 99.3% success, up to 190K context |
+| `qwen3.6-35b-abliterated` (default) | Long agent sessions at speed; MoE, thinks before answering | 256K | 70 tok/s short, 43 tok/s at 209K | 3,109 at 99.9% success, up to 236K context |
+| `qwen3-coder-30b-abliterated` | Fastest turnaround, no thinking | 96K | 84 tok/s short, 35 tok/s at 84K | benchmarks only |
+
+<sub>Speeds for the two MoE models come from benchmarks at the stated context. The `qwen3.8-27b` range is the median
+decode speed over real Claude Code and opencode requests that produced at least 200 tokens.</sub>
 
 <p align="center">
   <img src="docs/assets/panel-models.png" alt="The kllm panel's model library: 46 models, filterable by chat, image and video, with context size, quantisation and VRAM for each" width="92%">
@@ -176,6 +200,20 @@ after 25 minutes without requests.
 kllm uses your Kaggle account and its free quota. Follow [Kaggle's Terms of Service](https://www.kaggle.com/terms),
 which allow one account per person. kllm can manage several accounts (for example a team where each person adds
 their own), but which accounts you add is your responsibility.
+
+## Quick answers
+
+**Is it really free?** Yes, within Kaggle's free tier: about 30 GPU hours a week per account. kllm stops
+idle GPUs so the hours last.
+
+**How is this different from Ollama or LM Studio?** Those run models on your own hardware. kllm runs them on
+Kaggle's GPUs and keeps only a 55 MB relay on your machine, so a laptop without a GPU can run a 35B model.
+
+**Can I run Claude Code on an open model?** Yes. `claude-kllm` starts Claude Code against the relay's
+Anthropic-compatible endpoint, with the model's real context window.
+
+**Does it work with Cursor, Continue, Aider or LangChain?** Anything that accepts an OpenAI base URL works:
+use `http://127.0.0.1:8080/v1` and model `kllm`.
 
 ## What does not work yet?
 

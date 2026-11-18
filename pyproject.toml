@@ -4,13 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kllm-gateway"          # PyPI name ("kllm" is taken by a look-alike); the commands are kllm and claude-kllm
-version = "0.3.0"
-description = "Open-weight LLMs on free Kaggle GPUs, served as a local OpenAI/Anthropic API for coding agents"
-readme = "README.md"
+version = "0.3.1"
+description = "Free GPU LLMs for Claude Code, opencode and any OpenAI client: Qwen on Kaggle's free T4s as a local OpenAI/Anthropic API"
+readme = "docs/PYPI.md"          # PyPI page: absolute image URLs, no Mermaid (README.md is the GitHub page)
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [{ name = "SANTHAN-KUMAR" }]
-keywords = ["llm", "kaggle", "llama.cpp", "openai", "anthropic", "claude-code", "opencode", "gpu"]
+keywords = ["llm", "kaggle", "free-gpu", "llama.cpp", "llama-cpp", "gguf", "qwen", "openai", "openai-compatible", "anthropic",
+            "claude-code", "opencode", "coding-agent", "local-llm", "self-hosted", "inference", "mcp", "abliterated"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
@@ -18,6 +19,15 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Topic :: Software Development",
+  "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 # Deliberately small: LiteLLM is NOT required (relay speaks OpenAI + Anthropic itself).
@@ -35,7 +45,11 @@ dev = ["pytest>=8", "pytest-timeout", "anyio", "jsonschema", "jinja2", "numpy", 
 
 [project.urls]
 Homepage = "https://github.com/SANTHAN-KUMAR/kllm"
+Source = "https://github.com/SANTHAN-KUMAR/kllm"
+Documentation = "https://github.com/SANTHAN-KUMAR/kllm#readme"
+Changelog = "https://github.com/SANTHAN-KUMAR/kllm/blob/main/CHANGELOG.md"
 Issues = "https://github.com/SANTHAN-KUMAR/kllm/issues"
+Discussions = "https://github.com/SANTHAN-KUMAR/kllm/discussions"
 
 [project.scripts]
 kllm = "gateway.cli:main"

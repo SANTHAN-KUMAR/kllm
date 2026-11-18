@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use kllm in your work, please cite it."
+title: "kllm: open-weight LLMs on free Kaggle GPUs as a local OpenAI and Anthropic compatible API"
+type: software
+authors:
+  - alias: SANTHAN-KUMAR
+repository-code: "https://github.com/SANTHAN-KUMAR/kllm"
+url: "https://github.com/SANTHAN-KUMAR/kllm"
+license: MIT
+version: 0.3.1
+date-released: "2026-11-18"
+keywords:
+  - large language models
+  - kaggle
+  - llama.cpp
+  - openai api
+  - coding agents

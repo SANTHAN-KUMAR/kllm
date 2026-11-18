@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kllm: free GPUs for your coding agent</title>
+<meta name="description" content="kllm runs open-weight LLMs on Kaggle's free GPUs and serves them on localhost through the OpenAI and Anthropic APIs. Works with Claude Code, opencode, Cursor and any OpenAI client. No local GPU, no API bill.">
+<link rel="canonical" href="https://kllm.dev/">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0a0a0a">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="kllm">
+<meta property="og:title" content="kllm: free GPUs for your coding agent">
+<meta property="og:description" content="Open-weight LLMs on Kaggle's free GPUs, served on localhost through the OpenAI and Anthropic APIs.">
+<meta property="og:url" content="https://kllm.dev/">
+<meta property="og:image" content="https://kllm.dev/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="kllm: free GPUs for your coding agent">
+<meta name="twitter:description" content="Open-weight LLMs on Kaggle's free GPUs, served on localhost for Claude Code, opencode and any OpenAI client.">
+<meta name="twitter:image" content="https://kllm.dev/assets/social-preview.png">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"kllm","alternateName":"kllm-gateway",
+ "description":"Runs open-weight LLMs on Kaggle's free GPUs and serves them as a local OpenAI and Anthropic compatible API for coding agents such as Claude Code and opencode.",
+ "applicationCategory":"DeveloperApplication","operatingSystem":"Linux, macOS, Windows","softwareVersion":"0.3.1",
+ "license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
+ "downloadUrl":"https://pypi.org/project/kllm-gateway/","codeRepository":"https://github.com/SANTHAN-KUMAR/kllm",
+ "url":"https://kllm.dev/","author":{"@type":"Person","name":"SANTHAN-KUMAR","url":"https://github.com/SANTHAN-KUMAR"}}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+ {"@type":"Question","name":"Is kllm really free?","acceptedAnswer":{"@type":"Answer","text":"Yes, within Kaggle's free tier: about 30 GPU hours a week per account. kllm stops idle GPUs so the hours last."}},
+ {"@type":"Question","name":"How is kllm different from Ollama or LM Studio?","acceptedAnswer":{"@type":"Answer","text":"Ollama and LM Studio run models on your own hardware. kllm runs them on Kaggle's GPUs and keeps only a 55 MB relay on your machine."}},
+ {"@type":"Question","name":"Can I run Claude Code on an open model?","acceptedAnswer":{"@type":"Answer","text":"Yes. The claude-kllm command starts Claude Code against kllm's Anthropic-compatible endpoint with the model's real context window."}},
+ {"@type":"Question","name":"Does kllm work with Cursor, Continue, Aider or LangChain?","acceptedAnswer":{"@type":"Answer","text":"Anything that accepts an OpenAI base URL works: use http://127.0.0.1:8080/v1 and the model name kllm."}}]}
+</script>
+<style>
+@font-face { font-family: "Geist"; src: url("assets/fonts/geist.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("assets/fonts/geist-mono.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  --bg: #0a0a0a; --fg: #ededed; --muted: #8f8f8f; --faint: #5c5c5c; --line: #1f1f1f; --line-2: #2e2e2e;
+  --code: #111111; --accent: #ededed; --ok: #5ee0a0;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg: #ffffff; --fg: #0a0a0a; --muted: #666666; --faint: #a1a1a1; --line: #eaeaea; --line-2: #dcdcdc; --code: #fafafa; --accent: #0a0a0a; --ok: #0f9d58; }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; overflow-x: hidden; background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+code, pre, .mono { font-family: var(--mono); }
+
+/* nav */
+nav { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+nav .wrap { display: flex; align-items: center; height: 60px; gap: 28px; }
+.brand { font-weight: 600; font-size: 18px; letter-spacing: -.02em; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+.brand img { width: 22px; height: 22px; }
+nav .links { margin-left: auto; display: flex; gap: 22px; font-size: 14px; }
+nav .links a { color: var(--muted); text-decoration: none; }
+nav .links a:hover { color: var(--fg); }
+
+/* hero */
+.hero { padding-top: 104px; padding-bottom: 72px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; font: 500 13px var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-radius: 999px; padding: 4px 12px; text-decoration: none; }
+.pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); display: inline-block; }
+h1 { font-size: clamp(44px, 8.4vw, 88px); line-height: .98; letter-spacing: -.055em; font-weight: 600; margin: 28px 0 22px; max-width: 900px; }
+.lead { font-size: clamp(17px, 2.1vw, 20px); color: var(--muted); max-width: 640px; margin: 0; }
+.lead b { color: var(--fg); font-weight: 500; }
+
+/* install */
+.install { margin-top: 40px; max-width: 620px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--code); overflow: hidden; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs button { flex: none; }
+.tabs button { all: unset; cursor: pointer; font: 500 13px var(--sans); color: var(--muted); padding: 10px 16px; border-bottom: 1px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--fg); }
+.cmd { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
+.cmd code { flex: 1; min-width: 0; scrollbar-width: none; font-size: 14.5px; white-space: nowrap; overflow-x: auto; }
+.cmd code::before { content: "$ "; color: var(--faint); }
+.copy { all: unset; cursor: pointer; font: 500 12px var(--sans); color: var(--muted); border: 1px solid var(--line-2); border-radius: 6px; padding: 4px 10px; }
+.copy:hover { color: var(--fg); border-color: var(--muted); }
+.works { margin-top: 18px; font-size: 14px; color: var(--faint); }
+.works span { color: var(--muted); }
+.cta { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; border: 1px solid var(--line-2); }
+.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn:hover { opacity: .88; }
+
+/* product shot */
+.shot { margin: 8px 0 0; border: 1px solid var(--line-2); border-radius: 14px; overflow: hidden; background: #0a0a0a; }
+.shot img { display: block; width: 100%; height: auto; }
+.caption { font-size: 13px; color: var(--faint); margin-top: 12px; }
+
+/* sections */
+section.wrap { padding-top: 128px; }
+.eyebrow { font: 500 13px var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
+h2 { font-size: clamp(30px, 4.4vw, 44px); letter-spacing: -.04em; line-height: 1.05; font-weight: 600; margin: 14px 0 0; max-width: 760px; }
+h2 + p { color: var(--muted); max-width: 640px; margin: 16px 0 0; }
+
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 48px; border-top: 1px solid var(--line); }
+.steps > div { padding: 28px 28px 0 0; }
+.steps > div + div { padding-left: 28px; border-left: 1px solid var(--line); }
+.steps .n { font: 500 13px var(--mono); color: var(--faint); }
+.steps h3 { font-size: 18px; letter-spacing: -.02em; margin: 14px 0 8px; font-weight: 600; }
+.steps p { margin: 0; color: var(--muted); font-size: 15px; }
+
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 48px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.metrics > div { padding: 30px 24px 30px 0; }
+.metrics > div + div { padding-left: 24px; border-left: 1px solid var(--line); }
+.metrics b { display: block; font-size: clamp(30px, 4vw, 42px); letter-spacing: -.045em; font-weight: 600; line-height: 1; }
+.metrics span { display: block; margin-top: 10px; color: var(--muted); font-size: 14px; }
+.note { font-size: 13px; color: var(--faint); margin-top: 14px; }
+
+.split { display: grid; grid-template-columns: 1fr 1.25fr; gap: 56px; align-items: start; margin-top: 8px; }
+pre.code { margin: 0; background: var(--code); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px 22px; font-size: 13.5px; line-height: 1.7; overflow-x: auto; }
+.k { color: var(--muted); } .s { color: var(--ok); }
+.table { margin-top: 40px; overflow-x: auto; }
+table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; padding: 14px 16px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 12px var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .06em; }
+td code { font-size: 14px; }
+td.m { color: var(--muted); }
+
+.faq { margin-top: 40px; border-top: 1px solid var(--line); }
+.faq details { border-bottom: 1px solid var(--line); padding: 20px 0; }
+.faq summary { cursor: pointer; list-style: none; font-weight: 500; font-size: 17px; letter-spacing: -.01em; display: flex; justify-content: space-between; }
+.faq summary::after { content: "+"; color: var(--faint); font-family: var(--mono); }
+.faq details[open] summary::after { content: "−"; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq p { color: var(--muted); margin: 12px 0 0; max-width: 720px; }
+
+.final.wrap { text-align: center; padding-top: 144px; padding-bottom: 112px; }
+.final h2 { margin: 0 auto; }
+.final .install { margin: 32px auto 0; text-align: left; }
+.final .cta { justify-content: center; }
+footer { border-top: 1px solid var(--line); padding: 28px 0 40px; font-size: 13px; color: var(--faint); }
+footer .wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+footer a { color: var(--muted); text-decoration: none; }
+footer .right { margin-left: auto; display: flex; gap: 20px; }
+
+@media (max-width: 780px) {
+  .hero { padding-top: 64px; padding-bottom: 48px; }
+  .cmd code { font-size: 13px; }
+  nav .links a.hide-sm { display: none; }
+  .steps, .metrics, .split { grid-template-columns: 1fr; gap: 0; }
+  .steps > div, .steps > div + div { padding: 24px 0; border-left: 0; border-bottom: 1px solid var(--line); }
+  .metrics { grid-template-columns: 1fr 1fr; }
+  .metrics > div, .metrics > div + div { padding: 22px 0; border-left: 0; }
+  .split { gap: 28px; }
+  footer .right { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#"><img src="assets/favicon.svg" alt="">kllm</a>
+    <div class="links">
+      <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#models">Models</a>
+      <a href="https://github.com/SANTHAN-KUMAR/kllm#readme">Docs</a>
+      <a href="https://github.com/SANTHAN-KUMAR/kllm">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <header class="hero wrap">
+    <a class="pill" href="https://github.com/SANTHAN-KUMAR/kllm/blob/main/CHANGELOG.md"><i></i>v0.3.1 · open source, MIT</a>
+    <h1>Free GPUs for your coding agent.</h1>
+    <p class="lead">kllm runs open-weight models on <b>Kaggle's free GPUs</b> and serves them on <b>localhost</b>, through
+      the OpenAI and Anthropic APIs your tools already speak. No local GPU. No API bill.</p>
+
+    <div class="install" data-install>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-cmd="pipx install kllm-gateway">pipx</button>
+        <button role="tab" aria-selected="false" data-cmd="uv tool install kllm-gateway">uv</button>
+        <button role="tab" aria-selected="false" data-cmd="curl -fsSL https://raw.githubusercontent.com/SANTHAN-KUMAR/kllm/main/install.sh | sh">macOS / Linux</button>
+        <button role="tab" aria-selected="false" data-cmd='powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/SANTHAN-KUMAR/kllm/main/install.ps1 | iex"'>Windows</button>
+      </div>
+      <div class="cmd"><code>pipx install kllm-gateway</code><button class="copy" type="button">Copy</button></div>
+    </div>
+    <p class="works">Then run <span class="mono">kllm</span> and paste your Kaggle token. Works with <span>Claude Code</span>, <span>opencode</span>, <span>Cursor</span>, <span>Codex CLI</span>, <span>Gemini CLI</span> and any OpenAI client.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/SANTHAN-KUMAR/kllm">Star on GitHub</a>
+      <a class="btn" href="https://github.com/SANTHAN-KUMAR/kllm#how-do-i-get-started">Read the quick start</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <figure class="shot"><img src="assets/panel-models.png" width="1920" height="1290" alt="The kllm control panel: a model library of 46 chat, image and video models with context size, quantisation and VRAM for each"></figure>
+    <p class="caption">The control panel at <span class="mono">127.0.0.1:8080/admin</span>. Setup, models, GPUs and usage, all in the browser.</p>
+  </div>
+
+  <section id="how" class="wrap">
+    <div class="eyebrow">How it works</div>
+    <h2>Your tools talk to localhost. kllm handles the GPUs.</h2>
+    <div class="steps">
+      <div><div class="n">01</div><h3>One small relay on your machine</h3><p>A 55 MB process answers on <span class="mono">127.0.0.1:8080</span> in both OpenAI and Anthropic formats.</p></div>
+      <div><div class="n">02</div><h3>GPUs start when you need them</h3><p>The first request starts a private notebook on your Kaggle account. Idle GPUs stop on their own to save quota.</p></div>
+      <div><div class="n">03</div><h3>Sessions outlive Kaggle's limit</h3><p>Before a notebook's 12-hour cap, kllm starts a successor and moves each conversation with its cache warm.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="eyebrow">In daily use</div>
+    <h2>Six weeks behind a real coding workflow.</h2>
+    <div class="metrics">
+      <div><b>15,481</b><span>requests</span></div>
+      <div><b>98.95%</b><span>succeeded</span></div>
+      <div><b>750M</b><span>prompt tokens, 89.8% from cache</span></div>
+      <div><b>395K</b><span>largest context</span></div>
+    </div>
+    <p class="note">One developer's Claude Code and opencode sessions, Oct 6 to Nov 16 2026, from kllm's own request log.</p>
+  </section>
+
+  <section class="wrap">
+    <div class="eyebrow">Drop-in</div>
+    <div class="split">
+      <div>
+        <h2>Already speaks your API.</h2>
+        <p>Point any OpenAI or Anthropic client at localhost and keep your code. <span class="mono">claude-kllm</span> starts Claude Code with the model's real context window, and the panel writes the config for opencode, Codex CLI, Gemini CLI and Cursor.</p>
+      </div>
+<pre class="code"><span class="k">from</span> openai <span class="k">import</span> OpenAI
+
+client = OpenAI(
+    base_url=<span class="s">"http://127.0.0.1:8080/v1"</span>,
+    api_key=<span class="s">"local"</span>,
+)
+reply = client.chat.completions.create(
+    model=<span class="s">"kllm"</span>,
+    messages=[{<span class="s">"role"</span>: <span class="s">"user"</span>,
+               <span class="s">"content"</span>: <span class="s">"Refactor this module."</span>}],
+)</pre>
+    </div>
+  </section>
+
+  <section id="models" class="wrap">
+    <div class="eyebrow">Models</div>
+    <h2>Measured on two Tesla T4s.</h2>
+    <p>46 chat, image and video models ship in the library, and any GGUF or diffusers repo from Hugging Face can be added from the panel.</p>
+    <div class="table"><table>
+      <tr><th>Model</th><th>Best for</th><th>Context</th><th>Speed</th></tr>
+      <tr><td><code>qwen3.8-27b</code></td><td class="m">Highest answer quality, with vision and 256K variants</td><td>128K to 256K</td><td class="m">16 to 19 tok/s</td></tr>
+      <tr><td><code>qwen3.6-35b-abliterated</code></td><td class="m">Long agent sessions at speed</td><td>256K</td><td class="m">70 tok/s short, 43 at 209K</td></tr>
+      <tr><td><code>qwen3-coder-30b-abliterated</code></td><td class="m">Fastest turnaround</td><td>96K</td><td class="m">84 tok/s short</td></tr>
+    </table></div>
+  </section>
+
+  <section class="wrap">
+    <div class="eyebrow">Questions</div>
+    <h2>Before you install.</h2>
+    <div class="faq">
+      <details><summary>Is it really free?</summary><p>Yes, within Kaggle's free tier: about 30 GPU hours a week per account. kllm stops idle GPUs so the hours last.</p></details>
+      <details><summary>How is it different from Ollama or LM Studio?</summary><p>Those run models on your own hardware. kllm runs them on Kaggle's GPUs and keeps only a small relay on your machine, so a laptop without a GPU can run a 35B model.</p></details>
+      <details><summary>Can I run Claude Code on an open model?</summary><p>Yes. <span class="mono">claude-kllm</span> starts Claude Code against kllm's Anthropic-compatible endpoint, with the model's real context window so it stops auto-compacting early.</p></details>
+      <details><summary>Does it work with Cursor, Continue, Aider or LangChain?</summary><p>Anything that accepts an OpenAI base URL works: <span class="mono">http://127.0.0.1:8080/v1</span> with the model <span class="mono">kllm</span>.</p></details>
+      <details><summary>Is my Kaggle token safe?</summary><p>It stays on your machine and is used only to call Kaggle's API. The notebook reports its address encrypted and signed, and your prompts go only to your own notebook.</p></details>
+    </div>
+  </section>
+
+  <section class="final wrap">
+    <h2>Start in two minutes.</h2>
+    <div class="install" data-install>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-cmd="pipx install kllm-gateway">pipx</button>
+        <button role="tab" aria-selected="false" data-cmd="uv tool install kllm-gateway">uv</button>
+        <button role="tab" aria-selected="false" data-cmd="pip install kllm-gateway">pip</button>
+      </div>
+      <div class="cmd"><code>pipx install kllm-gateway</code><button class="copy" type="button">Copy</button></div>
+    </div>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/SANTHAN-KUMAR/kllm">Star on GitHub</a>
+      <a class="btn" href="https://pypi.org/project/kllm-gateway/">View on PyPI</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 SANTHAN-KUMAR · MIT license</span>
+    <span>Use your own Kaggle account and follow <a href="https://www.kaggle.com/terms">Kaggle's terms</a>.</span>
+    <div class="right">
+      <a href="https://github.com/SANTHAN-KUMAR/kllm">GitHub</a>
+      <a href="https://pypi.org/project/kllm-gateway/">PyPI</a>
+      <a href="https://github.com/SANTHAN-KUMAR/kllm/discussions">Discussions</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll("[data-install]").forEach(box => {
+  const code = box.querySelector("code"), copy = box.querySelector(".copy");
+  box.querySelectorAll("[data-cmd]").forEach(tab => tab.addEventListener("click", () => {
+    box.querySelectorAll("[data-cmd]").forEach(t => t.setAttribute("aria-selected", t === tab));
+    code.textContent = tab.dataset.cmd;
+  }));
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(code.textContent); copy.textContent = "Copied"; }
+    catch { copy.textContent = "Select and copy"; }
+    setTimeout(() => (copy.textContent = "Copy"), 1600);
+  });
+});
+</script>
+</body>
+</html>

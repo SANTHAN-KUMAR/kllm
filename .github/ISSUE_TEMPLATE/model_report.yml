@@ -1,0 +1,29 @@
+name: Model report
+description: Share how a model ran on Kaggle's 2x T4 (works or does not)
+labels: [model-report]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model key or Hugging Face repo
+      placeholder: "qwen3-coder-30b-abliterated, or org/name-GGUF:Q4_K_M"
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options: [Works well, Works with changes, Does not work]
+    validations:
+      required: true
+  - type: textarea
+    id: numbers
+    attributes:
+      label: Measurements
+      description: Context size, tokens per second at a short prompt and at a long one, time to ready.
+      placeholder: "ctx 98304; 84 tok/s short; 35 tok/s at 84K; ready in 9 min"
+  - type: textarea
+    id: changes
+    attributes:
+      label: Changes to models.yaml (if any)
+      render: yaml
