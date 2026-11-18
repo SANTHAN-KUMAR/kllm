@@ -1,0 +1,15 @@
+# LEGACY: set `remote_enabled: true` and `kllm serve` keeps the tunnel up (cloudflared downloaded on demand).
+# `kllm remote [port]` still works standalone; port defaults to the relay.
+[Unit]
+Description=kllm remote access — public https tunnel to the gateway (key-gated)
+After=network-online.target kllm-litellm.service
+Wants=kllm-litellm.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash %h/kllm/bin/remote-tunnel.sh 4000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

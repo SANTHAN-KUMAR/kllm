@@ -1,0 +1,17 @@
+# LEGACY: `kllm serve` runs the supervisor inside the relay process. See kllm-relay.service.
+[Unit]
+Description=kllm supervisor — health, failover, and pre-expiry rotation of the Kaggle pool
+After=network-online.target kllm-relay.service
+Wants=kllm-relay.service
+
+[Service]
+Type=simple
+Environment=KLLM_ROOT=%h/kllm
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/kllm/.venv/bin/python -m gateway.cli watch
+WorkingDirectory=%h/kllm
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

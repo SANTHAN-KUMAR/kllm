@@ -1,0 +1,126 @@
+/* kllm design tokens. Single source of truth for every colour, size, radius and timing in the UI.
+   Rule: no hex, rgb() or px value for colour, radius, shadow or duration may appear outside this file.
+   Components reference these variables only. See BRAND_KIT.md for when to use each one. */
+
+:root {
+  /* ---- Surfaces (dark, the default) ---- */
+  --k-bg: #0a0a0b;                         /* app background */
+  --k-bg-glow: rgba(255, 255, 255, .045);  /* top light, used once per page in the radial behind the content */
+  --k-surface-1: #19191b;                  /* raised surface, top of the gradient */
+  --k-surface-2: #111113;                  /* raised surface, middle */
+  --k-surface-3: #0e0e10;                  /* raised surface, bottom */
+  --k-sheet-1: #1a1a1c;                    /* sheets and inspectors, top */
+  --k-sheet-2: #101012;                    /* sheets and inspectors, bottom */
+  --k-code: #0d0d0f;                       /* code, diffs, log tails */
+  --k-fill-1: rgba(255, 255, 255, .03);    /* quiet fill: rows, inputs, chips */
+  --k-fill-2: rgba(255, 255, 255, .055);   /* selected row, hovered chip */
+  --k-fill-3: rgba(255, 255, 255, .09);    /* pressed, active segment */
+
+  /* ---- Text ---- */
+  --k-text: #ededee;                       /* primary text, never pure white */
+  --k-text-2: rgba(237, 237, 238, .62);    /* secondary text */
+  --k-text-3: rgba(237, 237, 238, .45);    /* captions, meta */
+  --k-text-4: rgba(237, 237, 238, .34);    /* disabled, axis labels, footers */
+  --k-text-dim-head: rgba(237, 237, 238, .38); /* second line of a two-tone headline */
+
+  /* ---- Lines ---- */
+  --k-line: rgba(255, 255, 255, .06);      /* dividers inside a surface */
+  --k-line-2: rgba(255, 255, 255, .10);    /* control outlines */
+  --k-line-3: rgba(255, 255, 255, .16);    /* hover outline, sheet edge top */
+  --k-edge-top: rgba(255, 255, 255, .12);  /* gradient border, top stop */
+  --k-edge-bottom: rgba(255, 255, 255, .03); /* gradient border, bottom stop */
+
+  /* ---- Action ---- */
+  --k-primary: #fdfdfd;                    /* the one white pill per screen */
+  --k-primary-text: #0a0a0a;
+
+  /* ---- State colours, as R,G,B triplets so alpha can vary: rgba(var(--k-live), .4) ---- */
+  --k-live: 140, 200, 255;                 /* live traffic, focus, selection, running work */
+  --k-lead: 185, 170, 255;                 /* the lead agent, thinking, cloud model */
+  --k-wait: 245, 192, 74;                  /* waiting, needs you, loading */
+  --k-ok: 94, 224, 160;                    /* healthy, passed, done */
+  --k-risk: 255, 140, 120;                 /* destructive, permissions skipped, failed */
+
+  /* ---- Type ---- */
+  --k-font-display: "Inter Tight", "Geist", system-ui, sans-serif;
+  --k-font-ui: "Geist", "Segoe UI", system-ui, sans-serif;
+  --k-font-mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --k-size-display: 52px;   /* page headline */
+  --k-size-display-s: 40px; /* headline inside sheets, Fleet, compact pages */
+  --k-size-title: 26px;     /* tool page title: Chat, Image, Video */
+  --k-size-section: 21px;   /* section title */
+  --k-size-stat: 26px;      /* number in a stat row */
+  --k-size-body: 14px;
+  --k-size-small: 13px;
+  --k-size-caption: 12px;
+  --k-size-label: 11.5px;
+  --k-track-display: -.052em;
+  --k-track-section: -.035em;
+
+  /* ---- Space, 4px scale ---- */
+  --k-1: 4px; --k-2: 8px; --k-3: 12px; --k-4: 16px; --k-5: 20px; --k-6: 24px;
+  --k-7: 28px; --k-8: 32px; --k-10: 40px; --k-13: 52px; --k-16: 64px;
+  --k-sidebar: 224px;
+
+  /* ---- Radius ---- */
+  --k-r-tag: 7px;      /* tags, kbd, small chips */
+  --k-r-control: 10px; /* inputs, selects, steppers */
+  --k-r-glyph: 12px;   /* icon tiles, rows */
+  --k-r-card: 16px;    /* plan card, approval card, diff */
+  --k-r-sheet: 22px;   /* sheets, inspector, tiles, composer */
+  --k-r-pill: 999px;
+
+  /* ---- Glow: only on the thing being touched or carrying live work ---- */
+  --k-glow-focus: 0 0 0 4px rgba(var(--k-live), .06), 0 0 36px -6px rgba(var(--k-live), .45);
+  --k-glow-lead: 0 0 40px -10px rgba(var(--k-lead), .5);
+  --k-shadow-raise: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 20px 40px -24px rgba(0, 0, 0, .8);
+  --k-shadow-sheet: -30px 0 60px -30px rgba(0, 0, 0, .9);
+
+  /* ---- Motion ---- */
+  --k-ease: cubic-bezier(.2, .7, .2, 1);
+  --k-t-hover: 150ms;
+  --k-t-fade: 200ms;
+  --k-t-sheet: 280ms;
+  --k-t-screen: 320ms;
+  --k-t-ambient: 22s;
+
+  color-scheme: dark;
+}
+
+/* ---- Light theme. Same roles, tuned for paper. Toggled by the user (Settings) or the OS. ---- */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --k-bg: #f6f6f7; --k-bg-glow: rgba(0, 0, 0, .025);
+    --k-surface-1: #ffffff; --k-surface-2: #fbfbfb; --k-surface-3: #f7f7f8;
+    --k-sheet-1: #ffffff; --k-sheet-2: #fafafa; --k-code: #f1f1f3;
+    --k-fill-1: rgba(0, 0, 0, .03); --k-fill-2: rgba(0, 0, 0, .05); --k-fill-3: rgba(0, 0, 0, .08);
+    --k-text: #111113; --k-text-2: rgba(17, 17, 19, .68); --k-text-3: rgba(17, 17, 19, .52);
+    --k-text-4: rgba(17, 17, 19, .40); --k-text-dim-head: rgba(17, 17, 19, .40);
+    --k-line: rgba(0, 0, 0, .06); --k-line-2: rgba(0, 0, 0, .10); --k-line-3: rgba(0, 0, 0, .18);
+    --k-edge-top: rgba(0, 0, 0, .10); --k-edge-bottom: rgba(0, 0, 0, .05);
+    --k-primary: #111113; --k-primary-text: #ffffff;
+    --k-live: 30, 110, 200; --k-lead: 110, 90, 210; --k-wait: 170, 110, 0; --k-ok: 20, 140, 85; --k-risk: 200, 70, 50;
+    --k-shadow-raise: 0 1px 2px rgba(0, 0, 0, .05), 0 12px 30px -20px rgba(0, 0, 0, .25);
+    --k-shadow-sheet: -20px 0 50px -30px rgba(0, 0, 0, .3);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --k-bg: #f6f6f7; --k-bg-glow: rgba(0, 0, 0, .025);
+  --k-surface-1: #ffffff; --k-surface-2: #fbfbfb; --k-surface-3: #f7f7f8;
+  --k-sheet-1: #ffffff; --k-sheet-2: #fafafa; --k-code: #f1f1f3;
+  --k-fill-1: rgba(0, 0, 0, .03); --k-fill-2: rgba(0, 0, 0, .05); --k-fill-3: rgba(0, 0, 0, .08);
+  --k-text: #111113; --k-text-2: rgba(17, 17, 19, .68); --k-text-3: rgba(17, 17, 19, .52);
+  --k-text-4: rgba(17, 17, 19, .40); --k-text-dim-head: rgba(17, 17, 19, .40);
+  --k-line: rgba(0, 0, 0, .06); --k-line-2: rgba(0, 0, 0, .10); --k-line-3: rgba(0, 0, 0, .18);
+  --k-edge-top: rgba(0, 0, 0, .10); --k-edge-bottom: rgba(0, 0, 0, .05);
+  --k-primary: #111113; --k-primary-text: #ffffff;
+  --k-live: 30, 110, 200; --k-lead: 110, 90, 210; --k-wait: 170, 110, 0; --k-ok: 20, 140, 85; --k-risk: 200, 70, 50;
+  --k-shadow-raise: 0 1px 2px rgba(0, 0, 0, .05), 0 12px 30px -20px rgba(0, 0, 0, .25);
+  --k-shadow-sheet: -20px 0 50px -30px rgba(0, 0, 0, .3);
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --k-t-hover: 0ms; --k-t-fade: 0ms; --k-t-sheet: 0ms; --k-t-screen: 0ms; }
+}

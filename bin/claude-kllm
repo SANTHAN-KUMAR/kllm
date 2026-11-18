@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# Run Claude Code against the Kaggle-hosted model via the kllm relay.
+# The relay proxies llama-server's native Anthropic /v1/messages API, load-balances the
+# Kaggle pool, and falls back to your local llama-server. Your normal `claude` is untouched.
+#   usage: claude-kllm [any claude args]      (first run starts the relay itself; the
+#     GPU backend then starts on the first request and stops after 25 min idle)
+set -euo pipefail
+RELAY="${KLLM_RELAY:-http://127.0.0.1:8080}"
+
+if ! curl -sf "$RELAY/__relay/health" >/dev/null; then
+  echo "kllm relay not running — starting it now (first use brings the stack up)..." >&2
+  if command -v kllm >/dev/null; then
+    kllm ensure-serve >&2 || true
+  else
+    python3 -m gateway.cli ensure-serve >&2 || true
+  fi
+  if ! curl -sf "$RELAY/__relay/health" >/dev/null; then
+    echo "kllm relay still not running. Start it:  kllm serve   (or: kllm install-service for at-logon start)" >&2
+    exit 1
+  fi
+fi
+if ! curl -sf "$RELAY/__relay/status" | grep -q '"url"'; then
+  echo "Note: no Kaggle backend in the pool yet — the first request starts it automatically (~8-10 min cold) and it stops after 25 min idle. To pre-warm now: 'kllm up'." >&2
+fi
+
+# Parse --model / --model= from arguments if present
+CLI_MODEL=""
+PASSTHROUGH_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model)
+      if [[ $# -ge 2 ]]; then
+        CLI_MODEL="$2"
+        shift 2
+      else
+        PASSTHROUGH_ARGS+=("$1")
+        shift
+      fi
+      ;;
+    --model=*)
+      CLI_MODEL="${1#--model=}"
+      shift
+      ;;
+    *)
+      PASSTHROUGH_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+KLLM_MODEL="${CLI_MODEL:-${KLLM_MODEL:-}}"
+
+# Model: $KLLM_MODEL, else your default model if it is running, else whatever runs ("kllm").
+read -r M AUTO_CTX < <(curl -sf "$RELAY/admin/api/state" | KLLM_MODEL="${KLLM_MODEL:-}" python3 -c '
+import json, os, sys
+d = json.load(sys.stdin); pool = d.get("pool", [])
+dflt = d.get("default_model")
+want = os.environ.get("KLLM_MODEL") or (dflt if (any(b["model_key"] == dflt for b in pool) or not pool) else "kllm")
+ctx = [b.get("ctx") for b in pool if b.get("ctx") and (want == "kllm" or b["model_key"] == want)]
+if not ctx:   # not running yet (autoscale starts it): size for that model from the registry
+    ctx = [m["ctx"] for m in d.get("models", []) if m.get("key") == want and m.get("ctx")]
+    if not ctx:
+        try:
+            from gateway import common
+            m_all = common.load_models()
+            if want in m_all and m_all[want].get("ctx"):
+                ctx = [m_all[want]["ctx"]]
+        except Exception:
+            pass
+print(want, min(ctx) if ctx else 32768)' 2>/dev/null || echo "${KLLM_MODEL:-kllm} 32768")
+KLLM_CTX="${KLLM_CTX:-$AUTO_CTX}"
+# Auto-compact window. Measured 2026-11-01 (docs/long_run_stability_report.md): Claude Code reserves part of the window for
+# the summary and a safety buffer, so at 65K (50% of 128K) a read-heavy task refilled the headroom within 3 turns, three
+# compactions in a row, and Claude Code aborted ("Autocompact is thrashing"). At 110K the same task needed one compaction in 30+ min; 90K (2026-11-01 11:20): a single multi-file turn jumped a session from below the threshold to 130K real tokens, forcing a slow reactive compaction that Claude Code abandoned at ~10 min, so compact earlier
+# min. VRAM/host RAM are static/bounded now, so the old "memory pressure" reason for 50% no longer applies.
+if [[ "$M" == *256k* ]] || [[ "$M" == *256K* ]]; then
+  AUTO_COMPACT_CTX=$(( KLLM_CTX > 220000 ? 150000 : KLLM_CTX - 20000 ))
+else
+  AUTO_COMPACT_CTX=$(( KLLM_CTX > 130000 ? 90000 : (KLLM_CTX * 84 / 100) ))
+fi
+# Allow user override
+AUTO_COMPACT_CTX="${KLLM_AUTO_COMPACT_CTX:-$AUTO_COMPACT_CTX}"
+echo "claude-kllm: model $M, context $KLLM_CTX, auto-compact at $AUTO_COMPACT_CTX" >&2
+
+export ANTHROPIC_BASE_URL="$RELAY"
+export ANTHROPIC_AUTH_TOKEN=sk-kllm-local      # relay overrides with the real backend key
+unset ANTHROPIC_API_KEY
+export ANTHROPIC_MODEL="$M"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="nanbeige4.3-33b-128k"
+export ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="nanbeige4.3-33b-128k"
+export ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="Nanbeige 4.3 33B 128K Dense Agentic Teacher"
+
+export ANTHROPIC_DEFAULT_SONNET_MODEL="$M"
+export ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="$M"
+export ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="Active KLLM Foundation Model"
+
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="$M"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$M"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="Active KLLM Fast Model"
+
+export ANTHROPIC_CUSTOM_MODEL_OPTION="$M"
+export ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="$M"
+export ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="$M"
+
+export CLAUDE_CODE_SUBAGENT_MODEL="$M"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+# Context window = what the live backend actually serves (ctx from the relay), so Claude Code
+# neither overflows the server nor compacts early. Claude Code keeps an autocompact buffer of
+# ~13K + max output tokens: with its default 32K output on a 60K window only ~22K was usable,
+# so it compacted after 1-2 prompts. 16K output on a 128K backend leaves ~96K usable.
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$AUTO_COMPACT_CTX"
+# cap one file read (12K tokens) so a single multi-file turn cannot jump past the compaction threshold and the window
+export CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS="${CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS:-12000}"
+# Thinking models count their reasoning as output: give them room when the context allows it.
+if [[ -z "${KLLM_MAX_OUTPUT:-}" ]]; then
+  if (( KLLM_CTX >= 200000 )); then KLLM_MAX_OUTPUT=32768; else KLLM_MAX_OUTPUT=16384; fi
+fi
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$KLLM_MAX_OUTPUT"
+# Remote prefill/thinking can take minutes; don't let Claude Code give up early.
+export API_TIMEOUT_MS=3600000
+export CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS=3600000
+export CLAUDE_STREAM_IDLE_TIMEOUT_MS=3600000
+export CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS=3600000
+export CLAUDE_ENABLE_BYTE_WATCHDOG=0
+export CLAUDE_ENABLE_STREAM_WATCHDOG=0
+export CLAUDE_CODE_ATTRIBUTION_HEADER=0
+
+# Lean session: Claude Code otherwise loads ~31K tokens of tool definitions (MCP, Chrome,
+# workflows...) which blows past a local model's context. Core coding tools only -> ~4K.
+# LEAN=0 claude-kllm restores everything.
+lean=()
+if [[ "${LEAN:-1}" == 1 ]]; then
+  lean=(--strict-mcp-config --mcp-config '{"mcpServers":{}}'
+        --tools "Bash,Read,Edit,Write,WebFetch,NotebookEdit,Glob,Grep")
+fi
+# No modelPicker/behavesAs: behavesAs pins Claude Code to the Claude model's 200K window and it then ignores
+# CLAUDE_CODE_MAX_CONTEXT_TOKENS, so a 128K backend overflows before auto-compact ("exceeded the 16384 output
+# token maximum"). See gateway/claude_launcher.py.
+MODEL_PICKER_SETTINGS='{"env":{"CLAUDE_CODE_ATTRIBUTION_HEADER":"0"}}'
+
+# Claude Code prepends an "x-anthropic-billing-header" line to the system prompt. Local servers
+# cache by exact prefix, so any change in it re-prefills the whole conversation. Drop it (this
+# only works via settings, not a plain env var; scoped to this process, global settings untouched).
+# --exclude-dynamic-system-prompt-sections: cwd/git status/date leave the system prompt, so the
+# cached prefix is identical across sessions too (not just within one)
+exec claude --model "$M" --settings "$MODEL_PICKER_SETTINGS" \
+  --exclude-dynamic-system-prompt-sections "${lean[@]}" "${PASSTHROUGH_ARGS[@]}"

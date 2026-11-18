@@ -1,0 +1,56 @@
+"""Regression: _pump must survive upstream silence longer than its keep-alive poll interval.
+
+Bug (2026-10-31): _pump polled the upstream with asyncio.wait_for(it.__anext__(), 5.0). A timeout cancels the
+pending __anext__, which finalises the httpx async generator, so the NEXT poll raised StopAsyncIteration and the
+relay reported "backend ended the response early" (closing the upstream so llama-server cancelled the task) for any
+request whose prefill was silent > 5 s after the response headers, i.e. every long-context agent turn.
+"""
+import asyncio, json
+from gateway import relay
+
+
+class FakeResp:
+    status_code = 200
+    headers = {"content-type": "text/event-stream"}
+
+    def __init__(self, silence):
+        self.silence = silence
+        self.closed = False
+
+    async def aiter_raw(self):
+        yield b":\n\n"                                    # headers + SSE comment arrive immediately
+        await asyncio.sleep(self.silence)                 # prefill: backend silent
+        yield b'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":9}}}\n\n'
+        yield b'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n\n'
+        await asyncio.sleep(self.silence)                 # a second silent gap mid-stream
+        yield b'event: message_stop\ndata: {"type":"message_stop"}\n\n'
+
+    async def aclose(self):
+        self.closed = True
+
+
+def _run(silence):
+    relay.ROUTER.begin("t:silence")
+    meter = relay._Meter("t:silence", "v1/messages", {"model": "m"})
+
+    async def go():
+        out = b""
+        async for c in relay._pump(FakeResp(silence), meter, "v1/messages", "t:silence"):
+            out += c
+        return out
+    return asyncio.run(go()), meter
+
+
+def test_pump_survives_silence_longer_than_poll(monkeypatch):
+    monkeypatch.setattr(relay, "PUMP_POLL_SECONDS", 0.05)
+    out, meter = _run(silence=0.4)                        # 8 poll intervals of silence, twice
+    assert meter.saw_end, "terminal event was never delivered"
+    assert b"ended the response early" not in out
+    assert b"message_stop" in out
+    assert out.count(b": kllm: prefilling") >= 8          # keep-alive comments flowed while silent
+
+
+def test_pump_no_silence_still_works(monkeypatch):
+    monkeypatch.setattr(relay, "PUMP_POLL_SECONDS", 0.05)
+    out, meter = _run(silence=0.0)
+    assert meter.saw_end and b"ended the response early" not in out

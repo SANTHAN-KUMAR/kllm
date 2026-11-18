@@ -1,0 +1,56 @@
+# secrets / machine-specific
+config.yaml
+.gh_token
+.webui_secret_key
+*.env
+kaggle_accounts/
+# runtime state (contains per-session API keys, tunnel URLs, rendered kernels with tokens)
+state/
+logs/
+media/
+# environments / binaries
+.venv/
+.webui-venv/
+bin/cloudflared
+__pycache__/
+*.pyc
+webui/data/
+litellm/config.yaml
+*.zip
+*.prev
+cloudflared
+*.bundle
+*.onnx
+llamacpp/
+scratch/
+.pytest_cache/
+*.log
+experiments/video_swap/inswapper_128.onnx*
+experiments/video_swap/out/
+experiments/video_swap/kaggle/out/
+*.mp4
+*.err
+config.yaml.bak*
+*.bak
+kaggle_accounts/
+.venv/
+
+# experiments, research and local scratch never ship
+experiments/
+research_notes/
+engines/
+benchmarks/*
+!benchmarks/benchmark_big_swarm_models.py
+swarm/benchmarks/*
+!swarm/benchmarks/__init__.py
+!swarm/benchmarks/benchmark_big_swarm_models.py
+docs/redesign/*
+!docs/redesign/tokens.css
+*.ipynb
+*.gguf
+*.safetensors
+*.png
+*.jpg
+*.jpeg
+*.webm
+*.tgz

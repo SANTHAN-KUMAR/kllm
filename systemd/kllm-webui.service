@@ -1,0 +1,22 @@
+[Unit]
+Description=kllm Open WebUI — local ChatGPT-style UI for the Kaggle LLM pool
+After=network-online.target kllm-litellm.service
+Wants=kllm-litellm.service
+
+[Service]
+Type=simple
+Environment=DATA_DIR=%h/kllm/state/webui
+Environment=PORT=3000
+Environment=HOST=127.0.0.1
+Environment=WEBUI_AUTH=False
+Environment=ENABLE_OLLAMA_API=False
+Environment=OPENAI_API_BASE_URL=http://127.0.0.1:4000/v1
+Environment=OPENAI_API_KEY=sk-kllm-local
+Environment=WEBUI_URL=http://localhost:3000
+ExecStart=%h/kllm/.webui-venv/bin/open-webui serve --host 127.0.0.1 --port 3000
+WorkingDirectory=%h/kllm
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,26 @@
+# Open WebUI — the ChatGPT-style local chat UI. Talks straight to the kllm relay (:8080),
+# which talks to Kaggle. The container is not "local" to the relay, so it must send your
+# gateway_api_key (OPENAI_API_KEY below) and the relay must listen on an address the container
+# can reach (relay_host: 0.0.0.0 in config.yaml; keep the key set!). With the optional LiteLLM
+# use port 4000 instead.
+#   start:  cd webui && docker compose up -d
+#   open:   http://localhost:3000
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: kllm-webui
+    ports:
+      - "3000:8080"
+    environment:
+      - OPENAI_API_BASE_URL=http://host.docker.internal:8080/v1
+      - OPENAI_API_KEY=<your gateway_api_key from config.yaml>
+      - WEBUI_AUTH=False                 # single-user local; set True to require login
+      - ENABLE_OLLAMA_API=False
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - kllm-webui-data:/app/backend/data
+    restart: unless-stopped
+
+volumes:
+  kllm-webui-data: {}

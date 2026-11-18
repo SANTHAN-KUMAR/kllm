@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Quick toggle to enable or disable MCP servers for Claude Code in Antigravity IDE
+# When disabled, saves ~13k+ tokens of system prompt context.
+
+CONFIG_DIR="${HOME}/.config/kllm"
+MODE_FILE="${CONFIG_DIR}/mcp_mode"
+
+mkdir -p "${CONFIG_DIR}"
+
+CURRENT=$(cat "${MODE_FILE}" 2>/dev/null || echo "on")
+
+case "$1" in
+    off|disable|lean)
+        echo "off" > "${MODE_FILE}"
+        echo "MCP servers DISABLED for Claude Code (saves ~13k tokens of system prompt context)."
+        echo "Restart or reload your Claude Code session in Antigravity for changes to take effect."
+        ;;
+    on|enable|full)
+        echo "on" > "${MODE_FILE}"
+        echo "MCP servers ENABLED for Claude Code."
+        echo "Restart or reload your Claude Code session in Antigravity for changes to take effect."
+        ;;
+    status|"")
+        echo "Current Claude Code MCP mode: [${CURRENT^^}]"
+        echo ""
+        echo "Commands:"
+        echo "  kllm-mcp off    -> Disable MCP servers in IDE (lean mode, save ~13k tokens)"
+        echo "  kllm-mcp on     -> Enable MCP servers in IDE"
+        echo "  kllm-mcp status -> Check current mode"
+        ;;
+    *)
+        echo "Usage: kllm-mcp [on | off | status]"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,16 @@
+# LEGACY three-process layout (relay + supervisor + litellm). The default is now ONE unit running
+# `kllm serve`: install it with `kllm install-service`. Do not run this together with kllm.service.
+[Unit]
+Description=kllm relay — stable local endpoint proxying to the Kaggle LLM pool
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=KLLM_ROOT=%h/kllm
+ExecStart=%h/kllm/.venv/bin/python -m gateway.cli relay
+WorkingDirectory=%h/kllm
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

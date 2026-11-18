@@ -1,0 +1,3 @@
+llama.cpp web UI, extracted unmodified (shell trimmed of PWA splash links) from release b12246
+libllama-server-impl.so, https://github.com/ggml-org/llama.cpp/releases/tag/b12246
+MIT licence: see LICENSE.

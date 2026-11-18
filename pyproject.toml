@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kllm"
+version = "0.2.0"
+description = "Abliterated LLMs on free Kaggle GPUs, served as a local OpenAI/Anthropic API"
+readme = "README.md"
+requires-python = ">=3.10"
+# Deliberately small: LiteLLM is NOT required (relay speaks OpenAI + Anthropic itself).
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "httpx>=0.27",
+  "pyyaml>=6.0",
+  "kaggle>=1.6",
+]
+
+[project.optional-dependencies]
+litellm = ["litellm[proxy]"]     # optional extra: LiteLLM proxy in front of the relay
+dev = ["pytest>=8", "anyio", "jsonschema", "jinja2", "numpy", "websockets", "pillow"]
+
+[project.scripts]
+kllm = "gateway.cli:main"
+claude-kllm = "gateway.claude_launcher:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gateway", "swarm"]
+
+# data the wheel needs at runtime (found by gateway.common.data_path)
+[tool.hatch.build.targets.wheel.force-include]
+"kernel" = "gateway/_data/kernel"
+"templates" = "gateway/_data/templates"
+"models.yaml" = "gateway/_data/models.yaml"
+"config.example.yaml" = "gateway/_data/config.example.yaml"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

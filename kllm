@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# kllm launcher for a source checkout (an installed package has its own `kllm` command).
+# Resolves its own location (through symlinks), so the checkout can live anywhere.
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"; src="$(readlink "$src")"
+  [[ "$src" != /* ]] && src="$dir/$src"
+done
+HERE="$(cd -P "$(dirname "$src")" && pwd)"
+export KLLM_ROOT="${KLLM_ROOT:-$HERE}"
+export PATH="$HOME/.local/bin:$PATH"   # legacy kg1..kgN wrappers
+PY="$HERE/.venv/bin/python"; [ -x "$PY" ] || PY="$(command -v python3)"
+cd "$KLLM_ROOT" || exit 1
+PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}" exec "$PY" -m gateway.cli "$@"

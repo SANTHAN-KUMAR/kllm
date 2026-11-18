@@ -1,0 +1,860 @@
+# kllm model registry — abliterated (uncensored) models for 2x Tesla T4 (30 GB VRAM).
+# Pick with `kllm model <key>` (default) or `kllm up --model <key>`, or launch from the panel.
+#
+#   hf / file   HuggingFace GGUF repo + exact file (preferred: imatrix "i1" quants are more accurate
+#               per bit). `quant` alone also works (llama-server -hf repo:quant).
+#   template    optional patched chat template (templates/), shipped into the kernel
+#   ctx         context the server allocates. Clients read it: claude-kllm live, opencode via its config.
+#   args        per-model llama-server flags, appended after the kernel defaults (so they win).
+#
+# What was measured on 2xT4 (2026-10-06), and why the flags look like this:
+#   * KV cache f16, not q8_0: on Turing, quantized KV takes llama.cpp's slow FlashAttention VEC path
+#     -> generation 1.6-2.5x slower at 12-43K context. Use q8_0 only when f16 does not fit.
+#   * -sm tensor (split each layer across both GPUs instead of pipelining them): +13-54% generation,
+#     prefill unchanged. Needs flash-attn + unquantized KV.
+#   * --spec-type ngram-mod: lossless speculation from text already in the context; agents copy a
+#     lot (Edit old_string, file rewrites) -> 120-300 t/s on copied spans.
+#   * no repeat/DRY penalties: they penalise copying prompt text and corrupt Edit old_string.
+#     Loops are handled by the relay's generic loop guard instead.
+#   * MTP speculation: the abliterated Qwen3.6 GGUF has no MTP layers (verified) -> not usable.
+# Any model, not only llama.cpp text models (`kllm add <hf repo or URL>` writes these entries for you):
+#   runtime     llama.cpp (default when absent) | diffusers (image/video pipelines, fp16, served in the kernel)
+#   kind        chat (default) | image | video       (diffusers defaults to image)
+#   opts        diffusers only: size, steps, guidance_scale, num_frames, fps, negative_prompt, variant,
+#               offload (auto|gpu|model|sequential|balanced), vae_tiling, fp32: [components], pip: [extra packages],
+#               warmup, size_multiple, max_frames, max_n. Request fields override them per call.
+#   Image/video backends run one request at a time; call them on the relay at
+#   /v1/images/generations and /v1/videos/generations (see README "Any model: chat, image, video").
+#
+# Models marked "unverified" have correct files (checked on HF) but were not benchmarked on kllm.
+
+models:
+  qwen3.8-27b:                              # DEFAULT — Official clean raw Qwen3.8-27B dense foundation model (thinking)
+    hf: sigmanih/Qwen-Qwen3.8-27B-GGUF-Q4_K_M
+    quant: Q4_K_M
+    file: Qwen--Qwen3.8-27B.Q4_K_M.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 27
+    ctx: 131072                             # 128K context floor (100% in VRAM, f16 KV, uncorrupted weights)
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "8192", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "16", "-cms", "12288",
+           "-sm", "tensor", "--spec-type", "draft-mtp,ngram-mod", "--spec-draft-n-max", "3", "-np", "2",
+           "--cache-ram", "6144"]
+    desc: "Official clean raw Qwen3.8-27B dense foundation model (clean Q4_K_M quant) — full uncorrupted weights, high-IQ reasoning and coding, 128K context."
+    tags: [default, thinking, long-context, verified, clean, method_a]
+
+  qwen3.8-27b-iq3:                          # Q3 (IQ3_XXS) clean foundation — smaller weights, more KV headroom
+    hf: unsloth/Qwen3.8-27B-GGUF
+    quant: UD-IQ3_XXS
+    file: Qwen3.8-27B-UD-IQ3_XXS.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 23
+    ctx: 262144                             # 256K with q8_0 KV (weights ~10.9GB, leaves room for KV)
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "8192", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "q8_0", "--cache-type-v", "q8_0",
+           "-ctxcp", "24", "-cms", "8192",
+           "-sm", "tensor", "--spec-type", "ngram-mod", "-np", "2",
+           "--cache-ram", "6144"]
+    desc: "Qwen3.8-27B in IQ3_XXS 3-bit quant (unsloth imatrix) — 256K context with q8_0 KV. ~3.3 bpw; trades ~1-2 quality points for ~6GB weight headroom vs Q4_K_M. Use when 256K f16 KV does not fit."
+    tags: [thinking, long-context, clean, method_a, 3bit, q3]
+
+  qwen3.8-27b-abliterated-iq3:              # Q3 abliterated — f16 KV at 128K (ISTA IQ3_S-mtp already exists as qwen3.8-27b-mtp)
+    hf: mradermacher/Huihui-Qwen3.8-27B-abliterated-i1-GGUF
+    quant: i1-IQ3_M
+    file: Huihui-Qwen3.8-27B-abliterated.i1-IQ3_M.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 23
+    ctx: 131072                             # 128K with f16 KV (weights ~12.8GB, leaves ~2.5GB/GPU headroom)
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "8192", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "24", "-cms", "8192",
+           "-sm", "tensor", "--spec-type", "ngram-mod", "-np", "2",
+           "--cache-ram", "6144"]
+    desc: "Abliterated Qwen3.8-27B in i1-IQ3_M (~3.6 bpw, imatrix) — 128K context with FAST f16 KV cache (no Turing slow path). Recommended when Q4 256K q4_0 variant is unstable."
+    tags: [thinking, long-context, abliterated, method_a, 3bit, q3, f16kv]
+
+  qwen3.8-27b-vision:                       # Multimodal Vision (Text + Images / UI Screenshots / Diagrams)
+    hf: unsloth/Qwen3.8-27B-GGUF
+    quant: UD-Q4_K_M
+    file: Qwen3.8-27B-UD-Q4_K_M.gguf
+    mmproj: mmproj-F16.gguf
+    image_max_tokens: 1024
+    template: templates/qwen3.6.jinja
+    vram_gb: 28
+    ctx: 131072                             # 128K context, f16 KV, vision projector on CPU
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "8192", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "16", "-cms", "12288",
+           "-sm", "tensor", "--spec-type", "draft-mtp,ngram-mod", "--spec-draft-n-max", "3", "-np", "2", "--no-mmproj-offload",
+           "--cache-ram", "6144"]
+    desc: "Official clean raw Qwen3.8-27B multimodal vision model with mmproj vision projector — accepts images, plots, diagrams, and code screenshots with 128K context."
+    tags: [vision, multimodal, thinking, long-context, verified, clean, method_a]
+
+  qwen3.8-27b-abliterated:                  # Abliterated (uncensored) variant (MTP-optimized)
+    hf: Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF
+    quant: Q4_K_M
+    file: Qwen3.8-27B-ABLITERATED-Q4_K_M.gguf
+    mmproj: mmproj-Qwen3.8-27B-ABLITERATED-F16.gguf
+    image_max_tokens: 1024
+    template: templates/qwen3.6.jinja
+    vram_gb: 27
+    ctx: 131072
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "8192", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "16", "-cms", "12288",
+           "-sm", "tensor", "--spec-type", "draft-mtp,ngram-mod", "--spec-draft-n-max", "3", "-np", "2", "--no-mmproj-offload",
+           "--cache-ram", "6144"]
+    desc: "Abliterated (uncensored) Qwen3.8-27B dense model — 128K context, f16 KV, MTP, native vision (projector on CPU)."
+    tags: [thinking, long-context, abliterated, method_a]
+
+  qwen3.8-27b-vision-abliterated-256k:      # ONE abliterated model: vision + MTP + 256K (Blackfrost weights + matching projector)
+    # A/B 2026-11-01 (same 2xT4): decode 25.7 tok/s short / 16.9 @100K vs 7 tok/s @140K for the old Huihui vision
+    # entry (no MTP); prefill 312 tok/s @100K; vision 3/3 (chart values, code bug, exact invoice transcription).
+    hf: Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF
+    quant: Q4_K_M
+    file: Qwen3.8-27B-ABLITERATED-Q4_K_M.gguf
+    mmproj: mmproj-Qwen3.8-27B-ABLITERATED-Q8_0.gguf
+    image_max_tokens: 1024
+    llamacpp_build: b12032                  # the build this exact combination was verified on
+    template: templates/qwen3.6.jinja
+    vram_gb: 27
+    ctx: 262144
+    args: [--temp, '0.6', --top-p, '0.95', --top-k, '20', --min-p, '0', --reasoning-format, deepseek, --reasoning-budget,
+             '8192', --reasoning-budget-message, "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n", -b, '2048', -ub, '512', --cache-type-k, q4_0, --cache-type-v, q4_0, -ctxcp, '8', -cms, '12288', -sm, tensor,
+             --spec-type, 'draft-mtp,ngram-mod', --spec-draft-n-max, '3', -np, '2', --kv-unified, --no-mmproj-offload, --cache-ram,
+             '14336']
+    desc: "Abliterated Qwen3.8-27B: vision + MTP speculative decoding + 256K context (projector on CPU)."
+    tags: [thinking, long-context, abliterated, vision, method_a, 256k]
+  qwen3.8-27b-abliterated-256k:             # Abliterated, text-only, 256K context (same weights as qwen3.8-27b-abliterated)
+    hf: Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF
+    quant: Q4_K_M
+    file: Qwen3.8-27B-ABLITERATED-Q4_K_M.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 27
+    ctx: 262144
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "8192", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "512", "--cache-type-k", "q4_0", "--cache-type-v", "q4_0",
+           "-ctxcp", "8", "-cms", "12288",   # 8 x 450 MiB MTP checkpoints per slot (append-only prompts rarely need to rewind far)
+           "-sm", "tensor", "--spec-type", "draft-mtp,ngram-mod", "--spec-draft-n-max", "3",
+           "-np", "2", "--kv-unified",
+           "--cache-ram", "14336"]   # measured: a 103K-token state was 10 GiB (> 6144) -> 'exceeds cache size limit, skipping' -> 10 min re-prefill. RAM bound: 1.1 + 14 + 2x8x0.45 = 22.3 GiB < 30
+    desc: "Abliterated (uncensored) Qwen3.8-27B, text-only, 256K context (q4_0 KV), MTP speculative decoding."
+    tags: [thinking, long-context, abliterated, method_a, 256k]
+
+  qwen3.8-27b-256k:                         # Method A 256K extended context (Clean Raw Foundation)
+    hf: sigmanih/Qwen-Qwen3.8-27B-GGUF-Q4_K_M
+    quant: Q4_K_M
+    file: Qwen--Qwen3.8-27B.Q4_K_M.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 27
+    ctx: 262144
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "8192", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "512",
+           "--cache-type-k", "q4_0", "--cache-type-v", "q4_0",
+           "-ctxcp", "16", "-cms", "12288",
+           "-sm", "tensor",
+           "--spec-type", "draft-mtp,ngram-mod", "--spec-draft-n-max", "3",
+           "-np", "2", "--kv-unified",
+           "--cache-reuse", "256", "--cache-ram", "6144"]
+    desc: "Official clean raw Qwen3.8-27B dense foundation model — 256K extended context with q4_0 KV cache (<11GB VRAM per GPU)."
+    tags: [thinking, long-context, clean, method_a, 256k]
+
+  nanbeige4.3-33b:                          # Nanbeige4.3-33B Dense Teacher (32K Context, f16 KV)
+    hf: bartowski/Nanbeige_Nanbeige4.3-33B-GGUF
+    quant: Q4_K_M
+    file: Nanbeige_Nanbeige4.3-33B-Q4_K_M.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 28
+    ctx: 32768
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "512",
+           "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "64", "-cms", "2048",
+           "-sm", "tensor",
+           "--spec-type", "ngram-mod",
+           "--spec-ngram-mod-n-match", "24",
+           "--spec-ngram-mod-n-min", "16",
+           "--spec-ngram-mod-n-max", "32",
+           "-np", "2", "--kv-unified",
+           "--cache-reuse", "256", "--cache-ram", "16384"]
+    desc: "Nanbeige4.3-33B dense agentic coding teacher (32K context floor, f16 KV in VRAM) — SOTA Terminal-Bench (80.9) & DeepSWE (65.5)."
+    tags: [coding, agentic, teacher, dense, thinking, method_a]
+
+  nanbeige4.3-33b-uncensored:               # Nanbeige4.3-33B Uncensored (64K Context, q8_0 KV)
+    hf: dealignai/Nanbeige4.3-33B-UNCENSORED-GGUF
+    quant: Q4_K_M
+    file: Nanbeige4.3-33B-UNCENSORED-Q4_K_M.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 28
+    ctx: 65536
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "512",
+           "--cache-type-k", "q8_0", "--cache-type-v", "q8_0",
+           "-ctxcp", "64", "-cms", "2048",
+           "-sm", "tensor",
+           "--spec-type", "ngram-mod",
+           "--spec-ngram-mod-n-match", "24",
+           "--spec-ngram-mod-n-min", "16",
+           "--spec-ngram-mod-n-max", "32",
+           "-np", "2", "--kv-unified",
+           "--cache-reuse", "256", "--cache-ram", "16384"]
+    desc: "Nanbeige4.3-33B Uncensored (dealignai) — 64K context with q8_0 KV cache, zero guardrail friction for deep agentic workflows."
+    tags: [coding, agentic, uncensored, dense, thinking, method_a]
+
+  nanbeige4.3-33b-128k:                     # Nanbeige4.3-33B 128K Extended Context (IQ4_XS + q4_0 KV)
+    hf: bartowski/Nanbeige_Nanbeige4.3-33B-GGUF
+    quant: IQ4_XS
+    file: Nanbeige_Nanbeige4.3-33B-IQ4_XS.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 27
+    ctx: 131072
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "512",
+           "--cache-type-k", "q4_0", "--cache-type-v", "q4_0",
+           "-ctxcp", "64", "-cms", "2048",
+           "-sm", "tensor",
+           "--spec-type", "ngram-mod",
+           "--spec-ngram-mod-n-match", "24",
+           "--spec-ngram-mod-n-min", "16",
+           "--spec-ngram-mod-n-max", "32",
+           "-np", "2", "--kv-unified",
+           "--cache-reuse", "256", "--cache-ram", "16384"]
+    desc: "Nanbeige4.3-33B with 128K context window using IQ4_XS weights and q4_0 KV cache — 100% in dual T4 VRAM with >1.7GB headroom."
+    tags: [coding, agentic, long-context, dense, thinking, method_a]
+
+  qwen3.8-27b-mtp:                          # Method A with native MTP speculative draft (35-50+ t/s)
+    hf: ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF
+    quant: IQ3_S-mtp
+    file: Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 25
+    ctx: 131072                             # 128K context floor, 100% in VRAM, f16 KV
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "8192", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "16", "-cms", "12288",
+           "-ctxcp", "16", "-cms", "12288", "-np", "2",
+           "-sm", "tensor",
+           "--spec-type", "draft-mtp,ngram-mod",
+           "--spec-draft-n-max", "3",
+           "--spec-ngram-mod-n-match", "24",
+           "--spec-ngram-mod-n-min", "16",
+           "--spec-ngram-mod-n-max", "32",
+           "--kv-unified", "--cache-reuse", "256", "--cache-ram", "6144"]
+    desc: "Qwen3.8-27B GSQ-RCO with hybrid Hardware-Native MTP and N-gram speculative decoding — 35-50+ t/s decode, task-lossless (100% AIME25/LiveCodeBench), 128K context in VRAM."
+    tags: [mtp, speculative, fast, thinking, long-context, verified, method_a]
+
+  qwen3.8-27b-dspine-test:                  # EXPERIMENTAL — DSpine block-16 parallel speculative decoding
+    hf: sigmanih/Qwen-Qwen3.8-27B-GGUF-Q4_K_M
+    quant: Q4_K_M
+    file: Qwen--Qwen3.8-27B.Q4_K_M.gguf
+    draft_hf: aj9o9/Qwen3.8-27B-DSpine-b16-GGUF
+    draft_file: Qwen3.8-27B-DSpine-b16-Q4_K_M.gguf
+    draft_quant: Q4_K_M
+    draft_ngld: 99
+    llamacpp_repo: https://github.com/Ajay9o9/llama.cpp
+    llamacpp_ref: dspine
+    prefer_cached_binary: true
+    template: templates/qwen3.6.jinja
+    vram_gb: 28
+    ctx: 32768                              # 32K context floor for experimental benchmarking (18.8GB weights + 4GB KV fits 30GB dual T4)
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "8192", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "16", "-cms", "12288",
+           "-sm", "tensor",
+           "--spec-type", "draft-dflash",
+           "--spec-draft-n-max", "16",
+           "-np", "1",
+           "--cache-ram", "6144"]
+    desc: "Experimental standalone profile for Tencent DSpine-b16 parallel speculative decoding on Qwen3.8-27B (Ajay9o9 fork) — benchmarks empirical dual T4 PCIe scaling with block-16 parallel draft rollout."
+    tags: [experimental, dspine, speculative, fast, thinking, testing]
+
+  qwen3.6-35b:                              # Qwen3.6-35B-A3B MoE (thinking)
+    hf: mradermacher/Qwen3.6-35B-A3B-i1-GGUF
+    quant: i1-Q4_K_M
+    file: Qwen3.6-35B-A3B.i1-Q4_K_M.gguf
+    template: templates/qwen3.6.jinja       # stock template rejects mid-chat system messages (Claude Code)
+    vram_gb: 28
+    ctx: 262144                             # full native context; hybrid attention -> ~20 KiB KV/token
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "64", "-cms", "2048",      # hybrid model: prompt cache works via checkpoints
+           "-sm", "tensor", "--spec-type", "ngram-mod"]
+    desc: "Official clean Qwen3.6-35B-A3B MoE (thinking) — 256K native context, uncorrupted weights, high-IQ reasoning and coding."
+    tags: [default, thinking, long-context, verified, clean]
+
+  qwen3.6-35b-clean:                        # alias
+    hf: mradermacher/Qwen3.6-35B-A3B-i1-GGUF
+    quant: i1-Q4_K_M
+    file: Qwen3.6-35B-A3B.i1-Q4_K_M.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 28
+    ctx: 262144
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "64", "-cms", "2048",
+           "-sm", "tensor", "--spec-type", "ngram-mod"]
+    desc: "Official clean Qwen3.6-35B-A3B MoE (thinking) — 256K native context, uncorrupted weights."
+    tags: [thinking, long-context, verified, clean]
+
+  qwen3.6-35b-abliterated:                  # abliterated variant
+    hf: mradermacher/Huihui-Qwen3.6-35B-A3B-abliterated-i1-GGUF
+    quant: i1-Q4_K_M
+    file: Huihui-Qwen3.6-35B-A3B-abliterated.i1-Q4_K_M.gguf
+    template: templates/qwen3.6.jinja       # stock template rejects mid-chat system messages (Claude Code)
+    vram_gb: 26
+    ctx: 262144                             # full native context; hybrid attention -> ~20 KiB KV/token
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "64", "-cms", "2048",      # hybrid model: prompt cache works via checkpoints
+           "-sm", "tensor", "--spec-type", "ngram-mod"]
+    desc: "Qwen3.6-35B-A3B MoE (thinking) — most accurate in long agent sessions, 256K context. 70 t/s short, 54 t/s at 90K, 43 t/s at 209K."
+    tags: [thinking, long-context, verified]
+
+  qwen3-coder-30b-abliterated:              # fastest coder
+    hf: mradermacher/Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated-i1-GGUF
+    quant: i1-Q4_K_M
+    file: Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated.i1-Q4_K_M.gguf
+    vram_gb: 28
+    ctx: 98304                              # full attention: 96 KiB KV/token in f16 -> 96K is the max that fits
+    args: ["--temp", "0.7", "--top-p", "0.8", "--top-k", "20", "--min-p", "0",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-sm", "tensor", "--spec-type", "ngram-mod"]
+    desc: "Qwen3-Coder-30B-A3B MoE (no thinking) — fastest replies, 96K context. 84 t/s short, 48 t/s at 43K, 35 t/s at 84K."
+    tags: [fast, coder, verified]
+
+  gpt-oss-20b-abliterated:
+    hf: bartowski/huihui-ai_Huihui-gpt-oss-20b-BF16-abliterated-GGUF
+    quant: MXFP4_MOE
+    file: huihui-ai_Huihui-gpt-oss-20b-BF16-abliterated-MXFP4_MOE.gguf
+    vram_gb: 16
+    ctx: 131072                             # sliding-window half the layers -> small KV
+    args: ["--temp", "1.0", "--top-p", "1.0", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-b", "2048", "-ub", "1024"]
+    desc: "gpt-oss-20B MoE (reasoning) — small and fast, 128K context. Unverified on kllm."
+    tags: [thinking, unverified]
+
+  qwen3-30b-a3b-abliterated:
+    hf: mradermacher/Qwen3-30B-A3B-abliterated-GGUF
+    quant: Q4_K_M
+    vram_gb: 24
+    ctx: 32768                              # native context of the original Qwen3-30B-A3B
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "--cache-type-k", "f16", "--cache-type-v", "f16"]
+    desc: "Qwen3-30B-A3B MoE (thinking, 2025) — older general model, 32K. Unverified on kllm."
+    tags: [thinking, unverified]
+
+  coder-32b-abliterated:
+    hf: bartowski/Qwen2.5-Coder-32B-Instruct-abliterated-GGUF
+    quant: Q4_K_M
+    vram_gb: 25
+    ctx: 32768                              # dense 32B: f16 KV at 32K does not fit next to 20 GB weights
+    args: ["--temp", "0.7", "--top-p", "0.8", "--top-k", "20"]
+    desc: "Qwen2.5-Coder-32B dense — strong classic coder, 32K, slower than the MoEs. Unverified on kllm."
+    tags: [coder, unverified]
+
+  qwen3-32b-abliterated:
+    hf: mradermacher/Qwen3-32B-abliterated-GGUF
+    quant: Q4_K_M
+    vram_gb: 25
+    ctx: 32768
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n"]
+    desc: "Qwen3-32B dense (thinking) — coding + reasoning, 32K. Unverified on kllm."
+    tags: [thinking, unverified]
+
+  qwq-32b-abliterated:
+    hf: bartowski/huihui-ai_QwQ-32B-abliterated-GGUF
+    quant: Q4_K_M
+    vram_gb: 25
+    ctx: 32768
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "40", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n"]
+    desc: "QwQ-32B dense — deep reasoning (math/logic), thinks a lot, 32K. Unverified on kllm."
+    tags: [thinking, unverified]
+
+  r1-distill-32b-abliterated:
+    hf: bartowski/DeepSeek-R1-Distill-Qwen-32B-abliterated-GGUF
+    quant: Q4_K_M
+    vram_gb: 25
+    ctx: 32768
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "40", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n"]
+    desc: "DeepSeek-R1 distilled into Qwen-32B — reasoning, 32K. Unverified on kllm."
+    tags: [thinking, unverified]
+
+  validate-3b:                              # cheap pipeline test (abliterated too, not for real work)
+    hf: bartowski/Qwen2.5-Coder-3B-Instruct-abliterated-GGUF
+    quant: Q4_K_M
+    file: Qwen2.5-Coder-3B-Instruct-abliterated-Q4_K_M.gguf
+    vram_gb: 3
+    ctx: 8192
+    args: ["--temp", "0.7"]
+    desc: "3B abliterated coder — end-to-end pipeline test only."
+    tags: [test]
+
+  # ---- long-context experiments (2026-10-06): LOSSLESS = default weights + f16 KV, only rope scaling ----
+  x-qwen36-512k:                            # experts of layers 15-19 (GPU 0) and 35-39 (GPU 1) in RAM: balanced
+    hf: mradermacher/Huihui-Qwen3.6-35B-A3B-abliterated-i1-GGUF
+    quant: i1-Q4_K_M
+    file: Huihui-Qwen3.6-35B-A3B-abliterated.i1-Q4_K_M.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 30
+    ctx: 524288
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "512", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "64", "-cms", "2048", "--spec-type", "ngram-mod",
+           "-ot", "blk\\.(1[5-9]|3[5-9])\\.ffn_(up|down|gate)_exps\\.=CPU",
+           "--rope-scaling", "yarn", "--rope-scale", "2", "--yarn-orig-ctx", "262144"]
+    desc: "experiment"
+    tags: [experiment]
+  x-qwen36-384k:                            # no offload: everything on the GPUs, tensor split
+    hf: mradermacher/Huihui-Qwen3.6-35B-A3B-abliterated-i1-GGUF
+    quant: i1-Q4_K_M
+    file: Huihui-Qwen3.6-35B-A3B-abliterated.i1-Q4_K_M.gguf
+    template: templates/qwen3.6.jinja
+    vram_gb: 29
+    ctx: 393216
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "--reasoning-format", "deepseek", "--reasoning-budget", "16384", "--reasoning-budget-message", "\n\nOkay, I have thought about this enough. Now I will give my final answer based on the reasoning above.\n",
+           "-b", "2048", "-ub", "512", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-ctxcp", "64", "-cms", "2048", "-sm", "tensor", "--spec-type", "ngram-mod",
+           "--rope-scaling", "yarn", "--rope-scale", "1.5", "--yarn-orig-ctx", "262144"]
+    desc: "experiment"
+    tags: [experiment]
+
+  # ---- image / video (diffusers). UNVERIFIED: repos and sizes checked on HF, never launched on kllm. ----
+  sdxl-turbo:
+    runtime: diffusers
+    kind: image
+    hf: stabilityai/sdxl-turbo
+    vram_gb: 9                               # ~6.9 GB fp16: fits one T4
+    opts: {"size": "512x512", "steps": 4, "guidance_scale": 0.0}
+    desc: "SDXL-Turbo — 1-4 step 512px images, fast. Non-commercial license. Unverified on kllm."
+    tags: [image, diffusers, unverified]
+
+  wan2.1-t2v-1.3b:
+    runtime: diffusers
+    kind: video
+    hf: Wan-AI/Wan2.1-T2V-1.3B-Diffusers
+    pipeline: WanPipeline
+    vram_gb: 15                              # ~14.7 GB fp16 total: model CPU offload on one T4 (umt5 text encoder 11 GB)
+    opts: {"size": "832x480", "num_frames": 33, "fps": 16, "steps": 30, "guidance_scale": 5.0,
+           "size_multiple": 16, "frame_multiple": 4, "max_frames": 81, "variant": null, "fp32": ["vae"], "warmup": false,
+           "vae_tiling": true, "vae_slicing": true, "tile_sample_min_height": 256, "tile_sample_min_width": 256,
+           "tile_sample_stride_height": 192, "tile_sample_stride_width": 192, "tile_sample_min_num_frames": 16, "tile_sample_stride_num_frames": 12,
+           "pip": ["diffusers>=0.35.0", "transformers>=4.48.0", "accelerate", "imageio-ffmpeg"]}
+    desc: "Wan2.1 1.3B — Text-to-Video & Video-to-Video transformation. 832x480 clips; frames must be 4n+1. fp16 on T4 with fp32 VAE."
+    tags: [video, diffusers, t2v, v2v, 480p]
+
+  wan2.1-i2v-14b:
+    runtime: diffusers
+    kind: video
+    hf: Wan-AI/Wan2.1-I2V-14B-480P-Diffusers
+    pipeline: WanImageToVideoPipeline
+    vram_gb: 15
+    opts:
+      size: "832x480"
+      num_frames: 49
+      fps: 16
+      steps: 30
+      guidance_scale: 5.0
+      size_multiple: 16
+      frame_multiple: 4
+      max_frames: 81
+      quant: "nf4"
+      teacache: true
+      teacache_thresh: 0.15
+      torch_dtype: "float16"
+      variant: null
+      fp32: ["vae"]
+      vae_tiling: true
+      vae_slicing: true
+      tile_sample_min_height: 256
+      tile_sample_min_width: 256
+      tile_sample_stride_height: 192
+      tile_sample_stride_width: 192
+      tile_sample_min_num_frames: 16
+      tile_sample_stride_num_frames: 12
+      pip: ["diffusers>=0.35.0", "transformers>=4.48.0", "accelerate", "bitsandbytes", "imageio-ffmpeg"]
+      warmup: false
+    desc: "Wan2.1 I2V 14B (NF4 Quantized + TeaCache) — SOTA photorealistic Image-to-Video foundation model on 2xT4. True human anatomy, cinematic realism & temporal consistency."
+    tags: [video, diffusers, i2v, sota, realistic, photorealistic, 480p, wan]
+
+  wan2.1-i2v-14b-720p:
+    runtime: diffusers
+    kind: video
+    hf: Wan-AI/Wan2.1-I2V-14B-720P-Diffusers
+    pipeline: WanImageToVideoPipeline
+    vram_gb: 15
+    opts:
+      size: "1280x720"
+      num_frames: 49
+      fps: 16
+      steps: 30
+      guidance_scale: 5.0
+      size_multiple: 16
+      frame_multiple: 4
+      max_frames: 81
+      quant: "nf4"
+      teacache: true
+      teacache_thresh: 0.15
+      torch_dtype: "float16"
+      variant: null
+      fp32: ["vae"]
+      vae_tiling: true
+      vae_slicing: true
+      tile_sample_min_height: 256
+      tile_sample_min_width: 256
+      tile_sample_stride_height: 192
+      tile_sample_stride_width: 192
+      tile_sample_min_num_frames: 16
+      tile_sample_stride_num_frames: 12
+      pip: ["diffusers>=0.35.0", "transformers>=4.48.0", "accelerate", "bitsandbytes", "imageio-ffmpeg"]
+      warmup: false
+    desc: "Wan2.1 I2V 14B 720P HD (NF4 Quantized + TeaCache) — SOTA 720p HD photorealistic Image-to-Video on 2xT4."
+    tags: [video, diffusers, i2v, sota, realistic, photorealistic, 720p, wan]
+
+  wan2.2-ti2v-5b:
+    runtime: diffusers
+    kind: video
+    hf: Wan-AI/Wan2.2-TI2V-5B-Diffusers
+    pipeline: WanImageToVideoPipeline
+    vram_gb: 15
+    opts:
+      size: "720x1280"
+      num_frames: 53
+      fps: 5
+      steps: 7
+      guidance_scale: 4.0
+      size_multiple: 32
+      frame_multiple: 4
+      max_frames: 81
+      torch_dtype: "float16"
+      variant: null
+      fp32: ["vae"]
+      vae_tiling: true
+      vae_slicing: true
+      tile_sample_min_height: 256
+      tile_sample_min_width: 256
+      tile_sample_stride_height: 192
+      tile_sample_stride_width: 192
+      tile_sample_min_num_frames: 16
+      tile_sample_stride_num_frames: 12
+      teacache: true
+      teacache_thresh: 0.15
+      interpolate_fps: 24
+      pip: ["diffusers>=0.35.0", "transformers>=4.48.0", "accelerate", "imageio-ffmpeg"]
+      warmup: false
+    desc: "Wan2.2 TI2V 5B (Dense FP16 + TeaCache) — Ultra-efficient 5B foundation model fitting entirely in 15 GB VRAM with zero PCIe block-swapping. High-quality 480p photorealistic I2V/T2V in under 4 mins."
+    tags: [video, diffusers, i2v, t2v, efficient, 480p, wan2.2, fast]
+
+  wan2.2-video:
+    runtime: comfyui
+    kind: video
+    hf: QuantStack/Wan2.2-I2V-A14B-GGUF       # weights are fetched per mode by kernel/comfy_video.py (see M / MODE_MODELS)
+    vram_gb: 30                               # uses BOTH T4s: Raylight Ulysses sequence parallel
+    opts:
+      raylight: true
+      quality: best                           # best = 3-phase (undistilled CFG start on both GPUs) ; fast = 4-step distilled
+      size: 480p                              # 480p | 720p | WxH
+      preload: [i2v]                          # replace / recreate weights download on first use
+    desc: "Wan2.2-A14B video on 2xT4 via ComfyUI+GGUF+Raylight. Modes: i2v (image+prompt, 5/10/15 s, SVI chaining), replace (swap a person in a reference video with a reference image; SAM3 target text), recreate (wan3-style full re-render via VACE + depth). hq=true -> 1080p/32fps."
+    tags: [video, comfyui, wan2.2, i2v, edit, replace, raylight, sota]
+
+  wan2.2-ti2v-5b-720p:
+    runtime: diffusers
+    kind: video
+    hf: Wan-AI/Wan2.2-TI2V-5B-Diffusers
+    pipeline: WanImageToVideoPipeline
+    vram_gb: 15
+    opts:
+      size: "1280x704"
+      num_frames: 49
+      fps: 16
+      steps: 30
+      guidance_scale: 5.0
+      size_multiple: 32
+      frame_multiple: 4
+      max_frames: 81
+      torch_dtype: "float16"
+      variant: null
+      fp32: ["vae"]
+      vae_tiling: true
+      vae_slicing: true
+      tile_sample_min_height: 256
+      tile_sample_min_width: 256
+      tile_sample_stride_height: 192
+      tile_sample_stride_width: 192
+      tile_sample_min_num_frames: 16
+      tile_sample_stride_num_frames: 12
+      teacache: true
+      teacache_thresh: 0.15
+      pip: ["diffusers>=0.35.0", "transformers>=4.48.0", "accelerate", "imageio-ffmpeg"]
+      warmup: false
+    desc: "Wan2.2 TI2V 5B 720P HD (Dense FP16 + TeaCache) — Ultra-efficient 720p HD (1280x704) photorealistic I2V/T2V in under 9 mins without PCIe CPU swapping."
+    tags: [video, diffusers, i2v, t2v, efficient, 720p, wan2.2, fast]
+
+  ltx-video:
+    runtime: diffusers
+    kind: video
+    hf: Lightricks/LTX-Video
+    pipeline: LTXImageToVideoPipeline
+    vram_gb: 15
+    opts: {"size": "704x480", "num_frames": 49, "fps": 24, "steps": 30, "guidance_scale": 3.0,
+           "size_multiple": 32, "frame_multiple": 8, "max_frames": 241, "warmup": false, "vae_tiling": false}
+    desc: "LTX-Video 2B — SOTA Image-to-Video & Text-to-Video on 2xT4. 704x480 to 720p (1280x704), 24 fps, 2-10s clips (49-241 frames). Model CPU offload."
+    tags: [video, diffusers, i2v, t2v, 720p, sota]
+
+  qwen-image-2.1-turbo:
+    runtime: diffusers
+    kind: image
+    hf: Qwen/Qwen-Image-2.1-Turbo
+    vram_gb: 15
+    opts:
+      size: "1024x1024"
+      steps: 8
+      guidance_scale: 1.0
+      offload: "model"
+      pipeline: "QwenImage21Pipeline"
+      size_multiple: 16
+      variant: null
+      vae_tiling: true
+      vae_slicing: true
+      pip: ["git+https://github.com/huggingface/diffusers.git", "torchao", "transformers>=5.17.0", "accelerate"]
+      warmup: false
+    desc: "Qwen-Image-2.1-Turbo — 8-step lightning-fast 1024px text-to-image & image editing with Qwen3-VL text encoder. Model CPU offload on 15GB GPU."
+    tags: [image, diffusers, turbo, fast]
+
+  qwen-image-2.1:
+    runtime: diffusers
+    kind: image
+    hf: Qwen/Qwen-Image-2.1
+    vram_gb: 15
+    opts:
+      size: "1024x1024"
+      steps: 30
+      guidance_scale: 4.0
+      offload: "model"
+      pipeline: "QwenImage21Pipeline"
+      size_multiple: 16
+      variant: null
+      vae_tiling: true
+      vae_slicing: true
+      pip: ["git+https://github.com/huggingface/diffusers.git", "torchao", "transformers>=5.17.0", "accelerate"]
+      warmup: false
+    desc: "Qwen-Image-2.1 — full 30-step ultra-high quality text-to-image and condition image editing model with native transparency and multi-reference support. Model CPU offload on 15GB GPU."
+    tags: [image, diffusers, quality]
+
+  fastwan2.2-ti2v-5b:
+    runtime: fastvideo
+    kind: video
+    hf: FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers
+    vram_gb: 15
+    opts:
+      size: "1280x704"
+      num_frames: 241
+      fps: 24
+      steps: 3
+      guidance_scale: 1.0
+      pip: ["fastvideo"]
+      warmup: false
+    desc: "FastWan2.2 TI2V 5B (3-step distilled, FastVideo) — 10s 720p in ~5-10 min on T4; minimal quality compromise."
+    tags: [video, fastvideo, i2v, t2v, 720p, fast, wan2.2]
+
+  # ---- kllm-swarm: Distributed MoE Pipeline Parallelism (22x T4 across 11 Kaggle Accounts) ----
+  qwen3-235b-swarm:
+    runtime: swarm
+    kind: chat
+    hf: BitPhinix/Qwen3-235B-A22B-Instruct-2507-bnb-nf4
+    quant: BNB_NF4
+    stages: 6
+    layers_per_stage: [15, 16, 16, 16, 16, 15]
+    total_layers: 94
+    hidden_dim: 4096
+    num_heads: 64
+    num_kv_heads: 4
+    num_experts: 128
+    vocab_size: 151936
+    head_dim: 128
+    draft_model: "mradermacher/Qwen3-0.6B-GGUF:Q8_0"
+    spec_k: 6
+    vram_gb: 25
+    ctx: 65536
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-sm", "tensor"]
+    desc: "Qwen3-235B-A22B MoE (94 layers, 128 experts top-8) distributed across 6 Kaggle nodes with intra-node TP=2 and Qwen3-0.6B draft speculation. ~50 tok/s via GCP hub."
+    tags: [swarm, moe, 235b, thinking, long-context]
+
+  deepseek-v3-671b-swarm:
+    runtime: swarm
+    kind: chat
+    hf: unsloth/DeepSeek-V3-GGUF
+    quant: IQ2_XXS
+    stages: 8
+    layers_per_stage: [7, 8, 8, 8, 8, 8, 8, 6]
+    draft_model: "mradermacher/Qwen3-0.6B-GGUF:Q8_0"
+    vram_gb: 27
+    ctx: 65536
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-sm", "tensor"]
+    desc: "DeepSeek-V3 671B-A37B MoE (61 layers, 256 experts top-8) distributed across 8 Kaggle nodes with intra-node TP=2 and MLA cache. ~51 tok/s via GCP hub."
+    tags: [swarm, moe, 671b, deepseek]
+
+  minimax-m2-230b-swarm:
+    runtime: swarm
+    kind: chat
+    hf: MiniMax/MiniMax-M2-GGUF
+    quant: Q4_K_M
+    stages: 6
+    layers_per_stage: [13, 14, 14, 14, 14, 11]
+    draft_model: "mradermacher/Qwen3-0.6B-GGUF:Q8_0"
+    vram_gb: 25
+    ctx: 65536
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-sm", "tensor"]
+    desc: "MiniMax-M2 ~230B-A12B MoE (80 layers, 128 experts top-8) distributed across 6 Kaggle nodes with intra-node TP=2. ~72 tok/s via GCP hub."
+    tags: [swarm, moe, 230b, fast]
+
+  qwen2.5-72b-swarm-6stage:
+    runtime: swarm
+    kind: chat
+    hf: unsloth/Qwen2.5-72B-Instruct-bnb-4bit
+    quant: BNB_NF4
+    stages: 6
+    layers_per_stage: [13, 14, 13, 13, 14, 13]
+    total_layers: 80
+    hidden_dim: 8192
+    num_heads: 64
+    num_kv_heads: 8
+    num_experts: 0
+    vocab_size: 152064
+    vram_gb: 24
+    ctx: 32768
+    desc: "Qwen2.5-72B-Instruct 6-stage pipeline (6 nodes, 12x T4, 180 GB VRAM) with Intra-Node TP=2 and real pretrained dataset weights."
+    tags: [swarm, 72b, 6stage, real, fast]
+
+  qwen2.5-72b-swarm-2stage:
+    runtime: swarm
+    kind: chat
+    hf: unsloth/Qwen2.5-72B-Instruct-bnb-4bit
+    quant: BNB_NF4
+    stages: 2
+    layers_per_stage: [39, 41]
+    total_layers: 80
+    hidden_dim: 8192
+    num_heads: 64
+    num_kv_heads: 8
+    num_experts: 0
+    vocab_size: 152064
+    draft_model: "mradermacher/Qwen3-0.6B-GGUF:Q8_0"
+    vram_gb: 24
+    ctx: 32768
+    args: ["--temp", "0.7", "--top-p", "0.8", "--top-k", "20", "--min-p", "0",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-sm", "tensor"]
+    desc: "Qwen2.5-72B-Instruct compressed 2-stage pipeline (2 nodes, 4x T4, only 2 WAN hops). Squeezes latency down to 2 hops per step. ~42 tok/s via GCP hub."
+    tags: [swarm, 72b, 2stage, fast]
+
+  minimax-m2-230b-swarm-3stage:
+    runtime: swarm
+    kind: chat
+    hf: MiniMax/MiniMax-M2-GGUF
+    quant: IQ3_XXS
+    stages: 3
+    layers_per_stage: [26, 28, 26]
+    draft_model: "mradermacher/Qwen3-0.6B-GGUF:Q8_0"
+    vram_gb: 29
+    ctx: 32768
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-sm", "tensor"]
+    desc: "MiniMax-M2 ~230B-A12B MoE compressed 3-stage pipeline (3 nodes, 6x T4, 3 WAN hops). Halves 6-stage WAN hop delay. ~85 tok/s via GCP hub."
+    tags: [swarm, moe, 230b, 3stage, fast]
+
+  deepseek-coder-v2-236b-swarm:
+    runtime: swarm
+    kind: chat
+    hf: axolotl-ai-co/DeepSeek-Coder-V2-Base-bnb-nf4-bf16
+    quant: BNB_NF4
+    stages: 6
+    layers_per_stage: [10, 10, 10, 10, 10, 10]
+    total_layers: 60
+    hidden_dim: 5120
+    num_heads: 128
+    num_kv_heads: 128
+    num_experts: 160
+    vocab_size: 102400
+    draft_model: "mradermacher/Qwen3-0.6B-GGUF:Q8_0"
+    vram_gb: 20
+    ctx: 65536
+    args: ["--temp", "0.6", "--top-p", "0.95", "--top-k", "20", "--min-p", "0",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-sm", "tensor"]
+    desc: "DeepSeek-Coder-V2 236B-A21B MoE (60 layers, 160 fine-grained experts top-6 + 2 shared) distributed across 6 Kaggle nodes with intra-node TP=2 and MLA cache. #1 open-weights coder."
+    tags: [swarm, moe, 236b, coder, deepseek]
+
+  mixtral-8x22b-swarm-4stage:
+    runtime: swarm
+    kind: chat
+    hf: mistral-community/Mixtral-8x22B-v0.1-4bit
+    quant: BNB_NF4
+    stages: 4
+    layers_per_stage: [14, 14, 14, 14]
+    total_layers: 56
+    hidden_dim: 6144
+    num_heads: 48
+    num_kv_heads: 8
+    num_experts: 8
+    vocab_size: 32000
+    draft_model: "mradermacher/Qwen3-0.6B-GGUF:Q8_0"
+    vram_gb: 24
+    ctx: 65536
+    args: ["--temp", "0.7", "--top-p", "0.8", "--top-k", "20", "--min-p", "0",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-sm", "tensor"]
+    desc: "Mixtral-8x22B-v0.1 MoE 4-stage pipeline (4 nodes, 8x T4, 120 GB VRAM). Pre-quantized bitsandbytes NF4 with intra-node TP=2. ~55 tok/s via GCP hub."
+    tags: [swarm, moe, 141b, mixtral, fast]
+
+  mixtral-8x22b-swarm-3stage:
+    runtime: swarm
+    kind: chat
+    hf: mistral-community/Mixtral-8x22B-v0.1-4bit
+    quant: BNB_NF4
+    stages: 3
+    layers_per_stage: [18, 19, 19]
+    total_layers: 56
+    hidden_dim: 6144
+    num_heads: 48
+    num_kv_heads: 8
+    num_experts: 8
+    vocab_size: 32000
+    draft_model: "mradermacher/Qwen3-0.6B-GGUF:Q8_0"
+    vram_gb: 28
+    ctx: 65536
+    args: ["--temp", "0.7", "--top-p", "0.8", "--top-k", "20", "--min-p", "0",
+           "-b", "2048", "-ub", "1024", "--cache-type-k", "f16", "--cache-type-v", "f16",
+           "-sm", "tensor"]
+    desc: "Mixtral-8x22B-v0.1 MoE compressed 3-stage pipeline (3 nodes, 6x T4, only 2 WAN hops). Lowest latency MoE pipeline. ~75 tok/s via GCP hub."
+    tags: [swarm, moe, 141b, mixtral, 3stage, fast]
+

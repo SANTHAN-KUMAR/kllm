@@ -1,0 +1,91 @@
+# kllm — Kaggle GPU as a local LLM gateway. Single source of truth.
+# `kllm init` writes this file for you. Edit values here; `kllm` reads it at runtime
+# (most settings hot-reload; restart `kllm serve` after changing ports).
+
+# ---- Kaggle accounts (rotation pool) ----------------------------------------
+# Use your own Kaggle account(s) and follow Kaggle's Terms of Service (kaggle.com/terms): Kaggle allows one
+# account per person. Extra entries are for accounts you are entitled to use (for example a teammate's, with
+# their permission); adding them is your responsibility.
+# One entry per Kaggle account, in rotation order. The orchestrator round-robins and skips
+# dead/quota'd ones. Credentials, first match wins:
+#   kaggle_json: /path/to/kaggle.json     the file downloaded from kaggle.com > Settings > API
+#   kaggle_config_dir: /path/to/dir       a directory containing kaggle.json (KAGGLE_CONFIG_DIR)
+#   kaggle_home: /path/to/home            a dir containing .kaggle/access_token (Bearer KGAT_ token,
+#                                         -> KAGGLE_API_TOKEN per call; no wrapper needed, Windows-safe)
+#   access_token: /path/to/token/file     a file containing a KGAT_ Bearer token
+#   (none)  a legacy wrapper script named like the account (kg1..kgN on PATH or ~/.local/bin)
+accounts:
+  - {name: kg1, user: your-kaggle-username, kaggle_json: ~/.kaggle/kaggle.json}
+  - {name: kg2, user: teammate-username, kaggle_json: ~/.kaggle/kaggle-2.json}   # optional: an account you may use
+
+# kaggle_bin: /path/to/kaggle   # optional: auto-detected next to kllm / on PATH
+kernel_slug: kllm-server        # stable slug per account; re-push = relaunch
+
+# ---- Serving --------------------------------------------------------------
+default_model: qwen3.6-35b-abliterated
+gateway_api_key: sk-change-me                # required from any non-local caller (tunnel, LAN); 127.0.0.1 needs none
+# hf_token: hf_...                          # optional HuggingFace read token: gated repos for `kllm add` and kernel downloads
+# default_image_model: sdxl-turbo           # optional: which model answers /v1/images/generations when "model" is omitted
+# default_video_model: wan2.1-i2v-14b        # same for /v1/videos/generations
+desired_pool: 0                     # how many models to keep running at all times (0 = manual).
+                                    # Set to 1+ (panel toggle) and the supervisor keeps that many up and
+                                    # auto-rotates them before the 12h cap — a 24/7 endpoint, hands-off.
+session_seconds: 39600              # 11h — leave headroom under the 12h hard cap
+prelaunch_lead_seconds: 1500        # pre-launch replacement 25 min before expiry (absorbs queue wait)
+health_interval_seconds: 30         # how often the orchestrator pings the active backend
+health_fail_limit: 3                # consecutive failures before failover
+
+# ---- Resource manager (autoscale) --------------------------------------------
+# Kaggle kernels are servers, conversations are clients. With autoscale on, a request for a
+# model that isn't running starts it (the request waits, kept alive), parallel sessions add
+# backends, queued accounts are hedged on the next-best account, idle backends are stopped.
+autoscale:
+  enabled: true
+  min_backends: 0               # keep this many of the default model up regardless (panel: Always on)
+  max_backends: 6               # most GPU kernels at once (swarm capacity across accounts)
+  spare_backends: 1             # hot standby ready to absorb sub-agent bursts without cold starts
+  sessions_per_backend: 2       # llama-server slots per backend
+  idle_stop_minutes: 25         # stop a backend nobody used for this long (spins down swarm workers to save quota)
+  queue_timeout_seconds: 240    # launch not running after this -> hedge on another account
+  max_wait_seconds: 1200        # how long a request may wait for a backend to start
+
+# ---- Local endpoints ------------------------------------------------------
+relay_host: 127.0.0.1
+relay_port: 8080                    # the stable endpoint everything local points at
+litellm_enabled: false              # OPTIONAL LiteLLM proxy (pip install 'kllm[litellm]'): off = OpenAI clients use the relay directly
+litellm_port: 4000                  # only used when litellm_enabled
+remote_enabled: false               # true: `kllm serve` keeps a public cloudflared tunnel up (downloaded on demand)
+webui_port: 3000
+
+# Last-resort fallback: your existing local llama-server (abliterated models/serve.sh).
+# If every Kaggle backend is down, the relay falls back here so you are never fully offline.
+local_fallback:
+  enabled: true
+  url: http://127.0.0.1:8081
+  api_key: sk-local
+
+# ---- URL handoff (Kaggle notebook -> your PC) -----------------------------
+# Only kernel status and the tunnel URL travel here (prompts never do; the backend API key never does).
+#   ntfy (default, zero setup): messages are encrypted and authenticated with rendezvous_secret before they are
+#        posted to unguessable ntfy topics, so the relay sees random bytes and forged messages are dropped.
+#        ntfy.sh is free and needs no account; set ntfy_server to use your own ntfy instance instead.
+#   gist: a private GitHub Gist you own. Needs a classic token with only the gist scope, which is then baked
+#        into each kernel. `kllm init --github-token <token>` sets it up.
+rendezvous: ntfy
+rendezvous_secret: CHANGE_ME_GENERATED_BY_KLLM_INIT
+# ntfy_server: https://ntfy.sh
+# gist_id: YOUR_PRIVATE_GIST_ID
+# gist_user: YOUR_GITHUB_USER
+# gist_token: ghp_YOUR_GIST_SCOPED_TOKEN
+
+# ---- Tunnel ---------------------------------------------------------------
+tunnel: cloudflared                 # Kaggle -> PC: zero-config quick tunnel (random trycloudflare URL, no account)
+
+# ---- kllm-swarm: Distributed MoE Pipeline ---------------------------------
+# Enables multi-account pipeline parallelism across 6-8 Kaggle nodes for 200B-671B models.
+swarm:
+  enabled: false                      # enable to orchestrate multi-node pipeline rings
+  hub_url: ""                         # GCP us-central1 e2-micro hub URL (leave empty for Cloudflare WAN mesh fallback)
+  push_min_gap: 5                     # seconds between multi-node account launches (bypasses 20s single-node gap)
+  max_hop_rtt_ms: 35.0                # evict node and hedge onto spare account if hub RTT exceeds threshold
+  speculative_draft_depth: 5          # draft depth K for speculative verification (5 for GCP hub, 8 for WAN)

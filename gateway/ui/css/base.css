@@ -1,0 +1,38 @@
+/* Reset, body, focus, scrollbars, fonts, reduced motion. Colours and sizes come from tokens.css only. */
+@font-face { font-family: "Geist"; src: url("../fonts/geist.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("../fonts/geist-mono.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Inter Tight"; src: url("../fonts/inter-tight.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+html { background: var(--k-bg); }
+body {
+  margin: 0; color: var(--k-text); background: var(--k-bg);
+  font: 400 var(--k-size-body)/1.5 var(--k-font-ui);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+h1, h2, h3, h4 { margin: 0; font-weight: 600; text-wrap: balance; }
+p { margin: 0; }
+a { color: inherit; text-underline-offset: 3px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .5; }
+code, kbd, pre, .k-mono { font-family: var(--k-font-mono); }
+pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
+img, svg { display: block; }
+table { border-collapse: collapse; }
+::selection { background: rgba(var(--k-live), .28); }
+:focus { outline: none; }
+:focus-visible { outline: 1.5px solid var(--k-text-2); outline-offset: 2px; border-radius: var(--k-r-tag); }
+* { scrollbar-width: thin; scrollbar-color: var(--k-line-3) transparent; }
+.k-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.k-num { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* native dropdown lists take the panel's colours (some browsers draw the open list light on a dark page) */
+select option, select optgroup { background-color: var(--k-bg); color: var(--k-text); }
+select option:disabled { color: var(--k-text-4); }

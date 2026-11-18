@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Quick toggle between kllm backend and official Claude models for Claude Code in Antigravity IDE
+
+CONFIG_DIR="${HOME}/.config/kllm"
+MODE_FILE="${CONFIG_DIR}/claude_mode"
+
+mkdir -p "${CONFIG_DIR}"
+
+CURRENT=$(cat "${MODE_FILE}" 2>/dev/null || echo "kllm")
+
+case "$1" in
+    kllm)
+        echo "kllm" > "${MODE_FILE}"
+        echo "Switched Claude Code mode to: KLLM (local/swarm backend via http://127.0.0.1:8080)"
+        echo "Reload Antigravity window (Ctrl+Shift+P -> Developer: Reload Window) for changes to take effect."
+        ;;
+    claude|official)
+        echo "claude" > "${MODE_FILE}"
+        echo "Switched Claude Code mode to: OFFICIAL (Anthropic servers with Claude subscription)"
+        echo "Reload Antigravity window (Ctrl+Shift+P -> Developer: Reload Window) for changes to take effect."
+        ;;
+    status|"")
+        echo "Current Claude Code mode: [${CURRENT^^}]"
+        echo "  - To switch to kllm:     kllm-claude-mode kllm"
+        echo "  - To switch to official: kllm-claude-mode claude"
+        ;;
+    *)
+        echo "Usage: kllm-claude-mode [kllm | claude | status]"
+        exit 1
+        ;;
+esac

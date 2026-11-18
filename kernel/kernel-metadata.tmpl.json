@@ -1,0 +1,13 @@
+{
+ "id": "__USER__/__SLUG__",
+ "title": "kllm-server",
+ "code_file": "server_kernel.py",
+ "language": "python",
+ "kernel_type": "script",
+ "is_private": true,
+ "enable_gpu": true,
+ "enable_internet": true,
+ "dataset_sources": [__DATASET_SOURCES__],
+ "competition_sources": [],
+ "kernel_sources": []
+}

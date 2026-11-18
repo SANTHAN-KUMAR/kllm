@@ -1,0 +1,257 @@
+// kllm provider for opencode. Merge this into ~/.config/opencode/opencode.jsonc
+// (under "provider"). Points opencode straight at the kllm relay's OpenAI-compatible API
+// (no LiteLLM needed). From this machine no key is required; the apiKey below is only a
+// placeholder. For another device use that device's URL and your gateway_api_key from config.yaml.
+//
+// "kllm" = whatever the pool is serving. Specific models below allow OpenCode to request
+// individual models explicitly with full context limits, reasoning, and multimodal capabilities.
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "kllm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "kllm (Kaggle GPU)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1", // the relay; (4000 only if you enabled the optional LiteLLM)
+        "apiKey": "sk-kllm-local",
+        "timeout": 1800000 // a cold start (model not running yet) can take ~10 min
+      },
+      "models": {
+        // Dynamic alias routed to whatever active model is running on the pool
+        "kllm": {
+          "name": "kllm (default / active model)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 262144, "output": 32768 }
+        },
+
+        // --- Method A Clean Foundation Models (Dual Tesla T4) ---
+        "qwen3.8-27b": {
+          "name": "Qwen3.8 27B (thinking, 128K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 131072, "output": 16384 }
+        },
+        "qwen3.8-27b-iq3": {
+          "name": "Qwen3.8 27B IQ3 (thinking, 256K, 3-bit)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 262144, "output": 16384 }
+        },
+        "qwen3.8-27b-abliterated-iq3": {
+          "name": "Qwen3.8 27B Abliterated IQ3 (thinking, 128K, f16 KV)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 131072, "output": 16384 }
+        },
+        "qwen3.8-27b-vision": {
+          "name": "Qwen3.8 27B Vision (multimodal, 128K)",
+          "tool_call": true,
+          "reasoning": true,
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": { "context": 131072, "output": 16384 }
+        },
+        "qwen3.8-27b-abliterated": {
+          "name": "Qwen3.8 27B Abliterated (thinking, 128K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 131072, "output": 16384 }
+        },
+        "qwen3.8-27b-vision-abliterated-256k": {
+          "name": "Qwen3.8 27B Vision Abliterated 256K (multimodal, uncensored, 256K)",
+          "tool_call": true,
+          "reasoning": true,
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": { "context": 262144, "output": 32768 }
+        },
+        "qwen3.8-27b-abliterated-256k": {
+          "name": "Qwen3.8 27B Abliterated 256K (text)",
+          "tool_call": true,
+          "reasoning": true,
+          "attachment": false,
+          "modalities": {
+            "input": ["text"],
+            "output": ["text"]
+          },
+          "limit": { "context": 262144, "output": 32768 }
+        },
+        "qwen3.8-27b-256k": {
+          "name": "Qwen3.8 27B 256K (thinking, 256K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 262144, "output": 32768 }
+        },
+        "qwen3.8-27b-mtp": {
+          "name": "Qwen3.8 27B MTP (speculative draft, 128K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 131072, "output": 16384 }
+        },
+        "qwen3.8-27b-dspine-test": {
+          "name": "Qwen3.8 27B DSpine Experimental (speculative draft, 32K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 32768, "output": 16384 }
+        },
+        // --- Nanbeige4.3 Agentic Dense Models ---
+        "nanbeige4.3-33b": {
+          "name": "Nanbeige4.3 33B (agentic teacher, 32K)",
+          "tool_call": true,
+          "limit": { "context": 32768, "output": 16384 }
+        ,
+          "reasoning": true},
+        "nanbeige4.3-33b-uncensored": {
+          "name": "Nanbeige4.3 33B Uncensored (agentic, 64K)",
+          "tool_call": true,
+          "limit": { "context": 65536, "output": 16384 }
+        ,
+          "reasoning": true},
+        "nanbeige4.3-33b-128k": {
+          "name": "Nanbeige4.3 33B 128K (long-context, 128K)",
+          "tool_call": true,
+          "limit": { "context": 131072, "output": 16384 }
+        ,
+          "reasoning": true},
+
+        // --- Qwen3.6 MoE Models ---
+        "qwen3.6-35b": {
+          "name": "Qwen3.6 35B (thinking, 256K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 262144, "output": 32768 }
+        },
+        "qwen3.6-35b-clean": {
+          "name": "Qwen3.6 35B Clean (thinking, 256K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 262144, "output": 32768 }
+        },
+        "qwen3.6-35b-abliterated": {
+          "name": "Qwen3.6 35B Abliterated (thinking, 256K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 262144, "output": 32768 }
+        },
+
+        // --- Fast Coding Models ---
+        "qwen3-coder-30b-abliterated": {
+          "name": "Qwen3-Coder 30B Abliterated (fast, 96K)",
+          "tool_call": true,
+          "limit": { "context": 98304, "output": 16384 }
+        },
+        "coder-32b-abliterated": {
+          "name": "Qwen2.5-Coder 32B Abliterated (coder, 32K)",
+          "tool_call": true,
+          "limit": { "context": 32768, "output": 8192 }
+        },
+        "validate-3b": {
+          "name": "Qwen2.5-Coder 3B Abliterated (test, 8K)",
+          "tool_call": true,
+          "limit": { "context": 8192, "output": 4096 }
+        },
+
+        // --- Reasoning / Thinking Models ---
+        "gpt-oss-20b-abliterated": {
+          "name": "gpt-oss 20B Abliterated (thinking, 128K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 131072, "output": 16384 }
+        },
+        "qwen3-30b-a3b-abliterated": {
+          "name": "Qwen3 30B-A3B Abliterated (thinking, 32K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 32768, "output": 8192 }
+        },
+        "qwen3-32b-abliterated": {
+          "name": "Qwen3 32B Abliterated (thinking, 32K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 32768, "output": 8192 }
+        },
+        "qwq-32b-abliterated": {
+          "name": "QwQ 32B Abliterated (deep reasoning, 32K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 32768, "output": 8192 }
+        },
+        "r1-distill-32b-abliterated": {
+          "name": "DeepSeek-R1-Distill 32B Abliterated (reasoning, 32K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 32768, "output": 8192 }
+        },
+
+        // --- Long-Context Experiments ---
+        "x-qwen36-512k": {
+          "name": "Qwen3.6 35B 512K (experiment, 512K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 524288, "output": 32768 }
+        },
+        "x-qwen36-384k": {
+          "name": "Qwen3.6 35B 384K (experiment, 384K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 393216, "output": 32768 }
+        },
+
+        // --- Swarm Distributed Models (Multi-Node Pipeline Parallelism) ---
+        "qwen3-235b-swarm": {
+          "name": "Qwen3 235B Swarm (distributed MoE, 64K)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": { "context": 65536, "output": 16384 }
+        },
+        "deepseek-v3-671b-swarm": {
+          "name": "DeepSeek-V3 671B Swarm (distributed MoE, 64K)",
+          "tool_call": true,
+          "limit": { "context": 65536, "output": 16384 }
+        },
+        "minimax-m2-230b-swarm": {
+          "name": "MiniMax-M2 230B Swarm (distributed MoE, 64K)",
+          "tool_call": true,
+          "limit": { "context": 65536, "output": 16384 }
+        },
+        "qwen2.5-72b-swarm-6stage": {
+          "name": "Qwen2.5 72B Swarm 6-Stage (distributed, 32K)",
+          "tool_call": true,
+          "limit": { "context": 32768, "output": 8192 }
+        },
+        "qwen2.5-72b-swarm-2stage": {
+          "name": "Qwen2.5 72B Swarm 2-Stage (distributed, 32K)",
+          "tool_call": true,
+          "limit": { "context": 32768, "output": 8192 }
+        },
+        "minimax-m2-230b-swarm-3stage": {
+          "name": "MiniMax-M2 230B Swarm 3-Stage (distributed, 32K)",
+          "tool_call": true,
+          "limit": { "context": 32768, "output": 8192 }
+        },
+        "deepseek-coder-v2-236b-swarm": {
+          "name": "DeepSeek-Coder-V2 236B Swarm (distributed MoE, 64K)",
+          "tool_call": true,
+          "limit": { "context": 65536, "output": 16384 }
+        },
+        "mixtral-8x22b-swarm-4stage": {
+          "name": "Mixtral 8x22B Swarm 4-Stage (distributed, 64K)",
+          "tool_call": true,
+          "limit": { "context": 65536, "output": 16384 }
+        },
+        "mixtral-8x22b-swarm-3stage": {
+          "name": "Mixtral 8x22B Swarm 3-Stage (distributed, 64K)",
+          "tool_call": true,
+          "limit": { "context": 65536, "output": 16384 }
+        }
+      }
+    }
+  }
+}

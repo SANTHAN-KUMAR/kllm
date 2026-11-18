@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Restart the relay only when no model request is in flight (a restart cuts live streams).
+# Works for the single-process service (kllm) and the legacy three-unit layout (kllm-relay).
+UNIT=kllm
+systemctl --user is-active --quiet kllm || UNIT=kllm-relay
+for _ in $(seq 360); do
+  n=$(curl -sf -m 3 http://127.0.0.1:8080/__relay/health | python3 -c 'import json,sys; print(json.load(sys.stdin).get("inflight", 0))' 2>/dev/null || echo 0)
+  [ "$n" = 0 ] && exec systemctl --user restart "$UNIT"
+  sleep 5
+done
+echo "relay busy for 30 min; not restarted" >&2; exit 1
