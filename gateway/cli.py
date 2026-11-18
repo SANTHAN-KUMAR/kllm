@@ -69,7 +69,31 @@ def cmd_add(args):
         print(f'then:      curl -s http://127.0.0.1:{cfg.get("relay_port", 8080)}{ep} -H "Content-Type: application/json" '
               f"-d '{{\"model\": \"{res['key']}\", \"prompt\": \"a lighthouse at dusk\"}}'")
 
+def _has_accounts():
+    try:
+        return bool(common.load_config().get("accounts"))
+    except Exception:
+        return False
+
+
+def cmd_open(args):
+    """`kllm` / `kllm setup`: make sure the relay runs, then open the panel (the welcome wizard on a first run)."""
+    import webbrowser
+    if not common.ensure_serve(wait_seconds=45, log=print):
+        print("kllm: the relay did not start (see logs/serve.log under", common.ROOT, ")"); sys.exit(1)
+    url = common.relay_base() + "/admin" + ("" if _has_accounts() else "#welcome")
+    print(f"kllm panel: {url}" + ("" if _has_accounts() else "   (first run: paste your Kaggle token there)"))
+    if not getattr(args, "no_browser", False):
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+
+
 def cmd_up(args):
+    if not _has_accounts():
+        print("kllm: no Kaggle account yet. Opening the setup page to add one...")
+        return cmd_open(args)
     orch.launch(model_key=args.model, account=args.account,
                 session_seconds=args.session, wait=not args.no_wait)
 
@@ -627,7 +651,10 @@ def agent_access_ok(args, env=None):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="kllm", description="Kaggle GPU as a local LLM gateway")
-    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub = ap.add_subparsers(dest="cmd")       # no command: open the panel (setup wizard on a first run)
+    s = sub.add_parser("setup", help="start kllm and open the setup/control panel in your browser (same as `kllm`)")
+    s.add_argument("--no-browser", action="store_true", help="only print the panel URL")
+    s.set_defaults(fn=cmd_open)
 
     s = sub.add_parser("add", help="add a model from HuggingFace (GGUF chat model, or diffusers image/video model)")
     s.add_argument("source", help="repo id (org/name) or a huggingface.co URL; org/name:Q5_K_M picks a quant")
@@ -737,13 +764,16 @@ def main(argv=None):
     s.set_defaults(fn=cmd_mcp)
 
     args = ap.parse_args(argv)
+    if args.cmd is None:
+        args.cmd, args.fn, args.no_browser = "setup", cmd_open, False
     if not agent_access_ok(args):
         sys.exit(3)
     # zero-config: the first command that needs a config creates it from the Kaggle credentials already on this
     # machine (~/.kaggle/kaggle.json, ~/.kaggle/access_token or KAGGLE_* env). `init`/`add` handle config themselves.
-    if args.cmd not in ("init", "add", "mcp") and (not common.CONFIG_FILE.exists() or args.cmd in ("serve", "up", "ensure-serve")):
+    if args.cmd not in ("init", "add", "mcp") and (not common.CONFIG_FILE.exists()
+                                                    or args.cmd in ("serve", "up", "ensure-serve", "setup")):
         from . import setup as _setup
-        if not _setup.ensure_config(common.ROOT, log=lambda *a: print(*a, file=sys.stderr)):
+        if not _setup.ensure_config(common.ROOT, log=lambda *a: print(*a, file=sys.stderr), allow_empty=True):
             sys.exit(2)
         common.CONFIG_FILE = common.ROOT / "config.yaml"
     try:

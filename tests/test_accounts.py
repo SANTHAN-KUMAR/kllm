@@ -1,5 +1,5 @@
-"""Account add (mocked kaggle CLI), disable/enable, remove with credential-file safety."""
-import os, stat, subprocess, types
+"""Account add (mocked Kaggle check), disable/enable, remove with credential-file safety."""
+import json, os, stat, subprocess, types
 import pytest, yaml
 from gateway import accounts, common
 
@@ -18,30 +18,49 @@ def env(tmp_path, monkeypatch):
     yield tmp_path
 
 
-def fake_run(user="bob", fail_list=False, calls=None):
+def fake_run(user="bob", fail_list=False, calls=None, envs=None):
+    """Stands in for the Python probe add_account runs with the account's credentials in its environment."""
     def run(cmd, **kw):
         if calls is not None: calls.append(cmd)
-        if cmd[1:3] == ["config", "view"]:
-            return types.SimpleNamespace(stdout=f"username: {user}\n", stderr="", returncode=0)
-        return types.SimpleNamespace(stdout="", stderr="403 Forbidden" if fail_list else "", returncode=1 if fail_list else 0)
+        if envs is not None: envs.append(kw.get("env") or {})
+        return types.SimpleNamespace(stdout=f"username: {user}\n", stderr="403 Forbidden" if fail_list else "",
+                                     returncode=1 if fail_list else 0)
     return run
 
 
 def test_add_account_creates_creds_wrapper_and_config_line(env):
-    calls = []
-    r = accounts.add_account(TOKEN, run=fake_run(calls=calls))
+    calls, envs = [], []
+    r = accounts.add_account(TOKEN, run=fake_run(calls=calls, envs=envs))
     assert r["name"] == "kg2" and r["user"] == "bob"
     tok = env / ".kaggle_home2" / ".kaggle" / "access_token"
     assert tok.read_text(encoding="utf-8").strip() == TOKEN and (os.name == "nt" or stat.S_IMODE(tok.stat().st_mode) in (0o600, 0o777))
     w = env / ".local" / "bin" / "kg2"
-    assert w.exists() and (os.name == "nt" or os.access(w, os.X_OK)) and ".kaggle_home2" in w.read_text(encoding="utf-8")
+    if os.name != "nt":                                          # convenience wrapper for the kaggle CLI by hand
+        assert w.exists() and os.access(w, os.X_OK) and ".kaggle_home2" in w.read_text(encoding="utf-8")
+    else:
+        assert not w.exists() and r["wrapper"] is None           # a #!/bin/sh script cannot run on Windows
     cfg = yaml.safe_load(common.CONFIG_FILE.read_text(encoding="utf-8"))
-    assert cfg["accounts"] == [{"name": "kg1", "user": "alice"}, {"name": "kg2", "user": "bob"}]
+    assert cfg["accounts"] == [{"name": "kg1", "user": "alice"},
+                               {"name": "kg2", "user": "bob", "kaggle_home": str(env / ".kaggle_home2")}]
     assert "# first" in common.CONFIG_FILE.read_text(encoding="utf-8") and cfg["kernel_slug"] == "s"
     assert all(TOKEN not in " ".join(c) for c in calls)          # never on a command line
+    assert envs[0].get("KAGGLE_API_TOKEN") == TOKEN              # the check runs with the account's own token
 
 
-@pytest.mark.parametrize("token", ["", "abc", "KGAT_xyz", "KGAT_" + "g" * 32])
+def test_add_account_from_kaggle_json_contents(env):
+    calls = []
+    pasted = json.dumps({"username": "carol", "key": "0123456789abcdef0123456789abcdef"})
+    r = accounts.add_account(pasted, run=fake_run(user="carol", calls=calls))
+    f = env / ".kaggle_home2" / ".kaggle" / "kaggle.json"
+    assert r["user"] == "carol" and json.loads(f.read_text(encoding="utf-8"))["key"].startswith("0123")
+    cfg = yaml.safe_load(common.CONFIG_FILE.read_text(encoding="utf-8"))
+    assert cfg["accounts"][-1] == {"name": "kg2", "user": "carol", "kaggle_config_dir": str(env / ".kaggle_home2" / ".kaggle")}
+    assert all("0123456789abcdef" not in " ".join(c) for c in calls)
+    with pytest.raises(accounts.AccountError, match="username"):
+        accounts.add_account('{"username": "x"}', run=fake_run())
+
+
+@pytest.mark.parametrize("token", ["", "abc", "KGAT_xyz", "KGAT_" + "g" * 32, "not json {"])
 def test_add_account_rejects_malformed_token(env, token):
     with pytest.raises(accounts.AccountError, match="KGAT_"):
         accounts.add_account(token, run=fake_run())
@@ -78,11 +97,12 @@ def test_remove_keeps_credentials_unless_explicitly_deleted(env):
     accounts.add_account(TOKEN, run=fake_run())
     home, tok, wrapper = accounts.credential_paths("kg2")
     assert accounts.remove_account("kg2") == []                  # config only
-    assert tok.exists() and wrapper.exists()
+    assert tok.exists() and (os.name == "nt" or wrapper.exists())
     assert [a["name"] for a in yaml.safe_load(common.CONFIG_FILE.read_text(encoding="utf-8"))["accounts"]] == ["kg1"]
     accounts.add_account(TOKEN, name="kg2", run=fake_run())
     gone = accounts.remove_account("kg2", delete_credentials=True)
-    assert set(gone) == {str(home), str(wrapper)} and not home.exists() and not wrapper.exists()
+    want = {str(home)} | ({str(wrapper)} if os.name != "nt" else set())
+    assert set(gone) == want and not home.exists() and not wrapper.exists()
 
 
 def test_remove_refuses_running_account_and_never_touches_foreign_files(env):

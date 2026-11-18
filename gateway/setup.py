@@ -61,9 +61,12 @@ def _set(txt, key, value):
 
 def render_config(example, accounts, gist_id=None, gist_user=None, gist_token=None, api_key=None,
                   rendezvous_secret=None):
-    """Fill config.example.yaml text. accounts: [{name, user, kaggle_json}], keeping all comments."""
+    """Fill config.example.yaml text. accounts: [{name, user, kaggle_json}], keeping all comments.
+    accounts == [] writes an empty list (a starter config: the panel's welcome page adds the first account)."""
     txt = example
-    if accounts:
+    if accounts == []:
+        txt = re.sub(r"^accounts:\n(?:[ \t]+.*\n|[ \t]*\n)*?(?=^\S|\Z)", lambda m: "accounts: []\n\n", txt, count=1, flags=re.M)
+    elif accounts:
         lines = []
         for a in accounts:
             lines.append("  - {" + ", ".join(f"{k}: {json.dumps(str(a[k]))}" for k in
@@ -175,9 +178,11 @@ NO_KAGGLE_HELP = ("No Kaggle credentials found. Get them once (a phone-verified 
                   "  (or ~/.kaggle/access_token for the newer token format), then run the command again.")
 
 
-def ensure_config(root=None, log=print):
-    """Create config.yaml without questions when it is missing (first `kllm serve` / `kllm up`), and fill in
-    rendezvous_secret when an older config lacks it. Returns True when a usable config exists."""
+def ensure_config(root=None, log=print, allow_empty=False):
+    """Create config.yaml without questions when it is missing (first `kllm` command), and fill in
+    rendezvous_secret when an older config lacks it. Returns True when a usable config exists.
+    With no Kaggle credentials on this machine: allow_empty=True writes a starter config with no accounts
+    (the panel's welcome page adds one); otherwise it explains the one step and returns False."""
     from . import sealbox
     root = pathlib.Path(root or common.ROOT)
     cfg_path = root / "config.yaml"
@@ -194,6 +199,10 @@ def ensure_config(root=None, log=print):
         return True
     acct = detect_account(root, log=log)
     if not acct:
+        if allow_empty:
+            run_init(root=root, accounts=[], network=False, log=lambda *a: None, allow_empty=True)
+            log(f"kllm: first run: wrote {cfg_path} (no Kaggle account yet: add one on the setup page)")
+            return True
         log(NO_KAGGLE_HELP)
         return False
     log(f"kllm: first run: using Kaggle account {acct['user']} ({acct.get('kaggle_json') or acct.get('access_token')})")
@@ -205,7 +214,7 @@ def ensure_config(root=None, log=print):
 # ---- the wizard ------------------------------------------------------------------------
 def run_init(root=None, accounts=(), github_token=None, gist_id=None, gist_user=None, no_gist=False,
              api_key=None, force=False, interactive=False, network=True, log=print,
-             ask=input, ask_secret=getpass.getpass):
+             ask=input, ask_secret=getpass.getpass, allow_empty=False):
     """Create <root>/config.yaml. Returns a summary dict. `accounts`: list of specs (see parse_account)."""
     root = pathlib.Path(root or common.ROOT)
     root.mkdir(parents=True, exist_ok=True)
@@ -240,7 +249,7 @@ def run_init(root=None, accounts=(), github_token=None, gist_id=None, gist_user=
                 accts.append(parse_account(p.strip("'\""), len(accts) + 1))
             except ValueError as e:
                 log(f"  ! {e}")
-    if not accts:
+    if not accts and not allow_empty:
         raise ValueError(NO_KAGGLE_HELP + "\n  (or pass --account /path/to/kaggle.json)")
 
     # rendezvous: the zero-setup ntfy channel unless a gist was asked for (--github-token / --gist-id)
@@ -276,7 +285,8 @@ def run_init(root=None, accounts=(), github_token=None, gist_id=None, gist_user=
 
     if cfg_path.exists():
         shutil.copyfile(cfg_path, cfg_path.with_suffix(".yaml.bak"))
-    txt = render_config(_example_text(), accts, gist_id, gist_user, gist_token, api_key, rv_secret)
+    txt = render_config(_example_text(), accts if accts else ([] if allow_empty else accts),
+                        gist_id, gist_user, gist_token, api_key, rv_secret)
     cfg_path.write_text(txt, encoding="utf-8")
     try:
         cfg_path.chmod(0o600)          # holds tokens

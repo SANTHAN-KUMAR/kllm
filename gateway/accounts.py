@@ -1,14 +1,26 @@
 """Kaggle account management shared by `kllm account ...` and the panel API.
 
-add_account() turns a pasted Kaggle API token into a working account: a private credentials dir
-(mode 600), a `kgN` wrapper script, a check against Kaggle, and a line in config.yaml's accounts list.
+add_account() turns pasted Kaggle credentials into a working account: a private credentials dir (mode 600),
+a check against Kaggle, and a line in config.yaml's accounts list that says where the credentials are. It accepts
+either kind of Kaggle credential:
+  - an API token, KGAT_<32 hex> (kaggle.com > Settings > API Tokens), stored as <home>/.kaggle/access_token
+  - the contents of a classic kaggle.json ({"username": ..., "key": ...}), stored as <home>/.kaggle/kaggle.json
+On Linux/macOS a `kgN` wrapper script is also written for using the kaggle CLI by hand (never needed by kllm).
 Only files this module created are ever removed again (remove_account(delete_credentials=True)).
 """
-import os, pathlib, re, stat, subprocess
-from . import common, yamledit
+import json, os, pathlib, re, stat, subprocess, sys
+from . import common, kaggle, yamledit
 
 TOKEN_RE = re.compile(r"KGAT_[0-9a-fA-F]{32}")
 NAME_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,23}")
+CRED_HELP = ("paste a Kaggle API token (KGAT_..., from kaggle.com > Settings > API Tokens) "
+             "or the contents of your kaggle.json")
+
+# Run with the account's credentials in the environment: prints the username, then proves the key works.
+PROBE = ("from kaggle.api.kaggle_api_extended import KaggleApi as K\n"
+         "a = K(); a.authenticate()\n"
+         "print('username: ' + str(a.config_values.get('username') or 'None'), flush=True)\n"
+         "a.kernels_list(mine=True, page_size=1)\n")
 
 
 class AccountError(Exception):
@@ -29,14 +41,39 @@ def credential_paths(name):
     return home, home / ".kaggle" / "access_token", pathlib.Path.home() / ".local" / "bin" / name
 
 
+def parse_credential(text):
+    """('token', 'KGAT_...') or ('json', {'username', 'key'}) from what the user pasted, else AccountError."""
+    text = (text or "").strip()
+    if TOKEN_RE.fullmatch(text):
+        return "token", text
+    if text.startswith("{"):
+        try:
+            d = json.loads(text)
+        except ValueError:
+            d = None
+        if isinstance(d, dict) and isinstance(d.get("username"), str) and isinstance(d.get("key"), str) \
+                and d["username"].strip() and d["key"].strip():
+            return "json", {"username": d["username"].strip(), "key": d["key"].strip()}
+        raise AccountError("that kaggle.json is not valid: it needs \"username\" and \"key\"")
+    raise AccountError("that is not a Kaggle credential: " + CRED_HELP + " (a token looks like KGAT_<32 hex>)")
+
+
+def _private_write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    old_umask = os.umask(0o077)
+    try:
+        path.write_text(text, encoding="utf-8")
+    finally:
+        os.umask(old_umask)
+    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+
 def add_account(token, name=None, cfg=None, run=None, log=lambda *a: None):
-    """Create an account from a Kaggle API token. Returns {name, user, home, wrapper}.
-    `run` replaces subprocess.run (tests)."""
+    """Create an account from pasted Kaggle credentials (a KGAT_ token or kaggle.json contents).
+    Returns {name, user, home, wrapper}. `run` replaces subprocess.run (tests)."""
     run = run or subprocess.run
     cfg = cfg if cfg is not None else common.load_config()
-    token = (token or "").strip()
-    if not TOKEN_RE.fullmatch(token):
-        raise AccountError("expected a Kaggle API token like KGAT_<32 hex> (Kaggle > Settings > API Tokens)")
+    kind, cred = parse_credential(token)
     name = (name or "").strip() or next_name(cfg)
     allow = [p for p in (cfg.get("account_allow_prefixes") or []) if p]
     if allow and not any(str(name).startswith(p) for p in allow):
@@ -46,40 +83,50 @@ def add_account(token, name=None, cfg=None, run=None, log=lambda *a: None):
     if any(a.get("name") == name for a in cfg.get("accounts") or []):
         raise AccountError(f"an account named '{name}' already exists")
     home, tok, wrapper = credential_paths(name)
-    (home / ".kaggle").mkdir(parents=True, exist_ok=True)
-    old_umask = os.umask(0o077)
-    try:
-        tok.write_text(token + "\n", encoding="utf-8")
-    finally:
-        os.umask(old_umask)
-    tok.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    kaggle_bin = os.path.expanduser(cfg.get("kaggle_bin") or "kaggle")
-    wrapper.parent.mkdir(parents=True, exist_ok=True)
-    wrapper.write_text(f'#!/bin/sh\nHOME=$HOME/{home.name} exec {kaggle_bin} "$@"\n', encoding="utf-8")
-    wrapper.chmod(0o755)
+    if kind == "token":
+        cred_file = tok
+        _private_write(tok, cred + "\n")
+        entry = {"name": name, "kaggle_home": str(home)}
+    else:
+        cred_file = home / ".kaggle" / "kaggle.json"
+        _private_write(cred_file, json.dumps(cred))
+        entry = {"name": name, "kaggle_config_dir": str(home / ".kaggle")}
+    made = [cred_file]
+    if os.name != "nt":
+        kaggle_bin = os.path.expanduser(cfg.get("kaggle_bin") or "kaggle")
+        wrapper.parent.mkdir(parents=True, exist_ok=True)
+        wrapper.write_text(f'#!/bin/sh\nHOME=$HOME/{home.name} exec {kaggle_bin} "$@"\n', encoding="utf-8")
+        wrapper.chmod(0o755)
+        made.append(wrapper)
+    secret = cred if kind == "token" else cred["key"]
 
     def fail(msg):
-        # a rejected token must not leave credentials behind
-        for p in (tok, wrapper):
+        # rejected credentials must not stay behind
+        for p in made:
             try: p.unlink()
             except OSError: pass
         raise AccountError(msg)
 
-    out = run([str(wrapper), "config", "view"], capture_output=True, text=True, timeout=60).stdout
-    m = re.search(r"username:\s*(\S+)", out or "")
+    try:
+        res = run([sys.executable, "-c", PROBE], env=kaggle.account_env(entry), capture_output=True, text=True,
+                  timeout=90)
+    except Exception as e:
+        fail(f"could not reach Kaggle to check the credentials: {type(e).__name__}")
+    out = (res.stdout or "") + "\n" + (res.stderr or "")
+    m = re.search(r"username:\s*(\S+)", res.stdout or "")
     if not m or m.group(1) == "None":
-        fail("Kaggle did not accept the token (no username).")
+        fail("Kaggle did not accept the credentials (no username).")
     user = m.group(1)
     if any(a.get("user") == user for a in cfg.get("accounts") or []):
         fail(f"account {user} is already configured")
-    chk = run([str(wrapper), "kernels", "list", "-m", "--page-size", "1"], capture_output=True, text=True, timeout=60)
-    if chk.returncode != 0:
-        fail("token rejected by Kaggle: " + ((chk.stdout or "") + (chk.stderr or "")).strip()[-200:].replace(token, "***"))
+    if res.returncode != 0:
+        fail("credentials rejected by Kaggle: " + out.strip()[-200:].replace(secret, "***"))
+    entry = {"name": name, "user": user, **{k: v for k, v in entry.items() if k != "name"}}
     with common.state_lock():
         txt = common.CONFIG_FILE.read_text(encoding="utf-8")
-        yamledit.atomic_write(common.CONFIG_FILE, yamledit.append_account(txt, {"name": name, "user": user}))
+        yamledit.atomic_write(common.CONFIG_FILE, yamledit.append_account(txt, entry))
     log(f"added {name} = {user}")
-    return {"name": name, "user": user, "home": str(home), "wrapper": str(wrapper)}
+    return {"name": name, "user": user, "home": str(home), "wrapper": str(wrapper) if wrapper in made else None}
 
 
 def set_disabled(name, disabled):

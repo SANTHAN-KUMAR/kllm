@@ -29,7 +29,7 @@
 # Models marked "unverified" have correct files (checked on HF) but were not benchmarked on kllm.
 
 models:
-  qwen3.8-27b:                              # DEFAULT — Official clean raw Qwen3.8-27B dense foundation model (thinking)
+  qwen3.8-27b:                              # Official clean raw Qwen3.8-27B dense foundation model (thinking)
     hf: sigmanih/Qwen-Qwen3.8-27B-GGUF-Q4_K_M
     quant: Q4_K_M
     file: Qwen--Qwen3.8-27B.Q4_K_M.gguf
@@ -43,7 +43,7 @@ models:
            "-sm", "tensor", "--spec-type", "draft-mtp,ngram-mod", "--spec-draft-n-max", "3", "-np", "2",
            "--cache-ram", "6144"]
     desc: "Official clean raw Qwen3.8-27B dense foundation model (clean Q4_K_M quant) — full uncorrupted weights, high-IQ reasoning and coding, 128K context."
-    tags: [default, thinking, long-context, verified, clean, method_a]
+    tags: [thinking, long-context, verified, clean]
 
   qwen3.8-27b-iq3:                          # Q3 (IQ3_XXS) clean foundation — smaller weights, more KV headroom
     hf: unsloth/Qwen3.8-27B-GGUF
@@ -59,7 +59,7 @@ models:
            "-sm", "tensor", "--spec-type", "ngram-mod", "-np", "2",
            "--cache-ram", "6144"]
     desc: "Qwen3.8-27B in IQ3_XXS 3-bit quant (unsloth imatrix) — 256K context with q8_0 KV. ~3.3 bpw; trades ~1-2 quality points for ~6GB weight headroom vs Q4_K_M. Use when 256K f16 KV does not fit."
-    tags: [thinking, long-context, clean, method_a, 3bit, q3]
+    tags: [thinking, long-context, clean, 3bit, q3]
 
   qwen3.8-27b-abliterated-iq3:              # Q3 abliterated — f16 KV at 128K (ISTA IQ3_S-mtp already exists as qwen3.8-27b-mtp)
     hf: mradermacher/Huihui-Qwen3.8-27B-abliterated-i1-GGUF
@@ -75,7 +75,7 @@ models:
            "-sm", "tensor", "--spec-type", "ngram-mod", "-np", "2",
            "--cache-ram", "6144"]
     desc: "Abliterated Qwen3.8-27B in i1-IQ3_M (~3.6 bpw, imatrix) — 128K context with FAST f16 KV cache (no Turing slow path). Recommended when Q4 256K q4_0 variant is unstable."
-    tags: [thinking, long-context, abliterated, method_a, 3bit, q3, f16kv]
+    tags: [thinking, long-context, abliterated, 3bit, q3, f16kv]
 
   qwen3.8-27b-vision:                       # Multimodal Vision (Text + Images / UI Screenshots / Diagrams)
     hf: unsloth/Qwen3.8-27B-GGUF
@@ -93,7 +93,7 @@ models:
            "-sm", "tensor", "--spec-type", "draft-mtp,ngram-mod", "--spec-draft-n-max", "3", "-np", "2", "--no-mmproj-offload",
            "--cache-ram", "6144"]
     desc: "Official clean raw Qwen3.8-27B multimodal vision model with mmproj vision projector — accepts images, plots, diagrams, and code screenshots with 128K context."
-    tags: [vision, multimodal, thinking, long-context, verified, clean, method_a]
+    tags: [vision, multimodal, thinking, long-context, verified, clean]
 
   qwen3.8-27b-abliterated:                  # Abliterated (uncensored) variant (MTP-optimized)
     hf: Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF
@@ -111,7 +111,7 @@ models:
            "-sm", "tensor", "--spec-type", "draft-mtp,ngram-mod", "--spec-draft-n-max", "3", "-np", "2", "--no-mmproj-offload",
            "--cache-ram", "6144"]
     desc: "Abliterated (uncensored) Qwen3.8-27B dense model — 128K context, f16 KV, MTP, native vision (projector on CPU)."
-    tags: [thinking, long-context, abliterated, method_a]
+    tags: [thinking, long-context, abliterated]
 
   qwen3.8-27b-vision-abliterated-256k:      # ONE abliterated model: vision + MTP + 256K (Blackfrost weights + matching projector)
     # A/B 2026-11-01 (same 2xT4): decode 25.7 tok/s short / 16.9 @100K vs 7 tok/s @140K for the old Huihui vision
@@ -130,7 +130,7 @@ models:
              --spec-type, 'draft-mtp,ngram-mod', --spec-draft-n-max, '3', -np, '2', --kv-unified, --no-mmproj-offload, --cache-ram,
              '14336']
     desc: "Abliterated Qwen3.8-27B: vision + MTP speculative decoding + 256K context (projector on CPU)."
-    tags: [thinking, long-context, abliterated, vision, method_a, 256k]
+    tags: [thinking, long-context, abliterated, vision, 256k]
   qwen3.8-27b-abliterated-256k:             # Abliterated, text-only, 256K context (same weights as qwen3.8-27b-abliterated)
     hf: Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF
     quant: Q4_K_M
@@ -146,7 +146,7 @@ models:
            "-np", "2", "--kv-unified",
            "--cache-ram", "14336"]   # measured: a 103K-token state was 10 GiB (> 6144) -> 'exceeds cache size limit, skipping' -> 10 min re-prefill. RAM bound: 1.1 + 14 + 2x8x0.45 = 22.3 GiB < 30
     desc: "Abliterated (uncensored) Qwen3.8-27B, text-only, 256K context (q4_0 KV), MTP speculative decoding."
-    tags: [thinking, long-context, abliterated, method_a, 256k]
+    tags: [thinking, long-context, abliterated, 256k]
 
   qwen3.8-27b-256k:                         # Method A 256K extended context (Clean Raw Foundation)
     hf: sigmanih/Qwen-Qwen3.8-27B-GGUF-Q4_K_M
@@ -165,7 +165,7 @@ models:
            "-np", "2", "--kv-unified",
            "--cache-reuse", "256", "--cache-ram", "6144"]
     desc: "Official clean raw Qwen3.8-27B dense foundation model — 256K extended context with q4_0 KV cache (<11GB VRAM per GPU)."
-    tags: [thinking, long-context, clean, method_a, 256k]
+    tags: [thinking, long-context, clean, 256k]
 
   nanbeige4.3-33b:                          # Nanbeige4.3-33B Dense Teacher (32K Context, f16 KV)
     hf: bartowski/Nanbeige_Nanbeige4.3-33B-GGUF
@@ -187,7 +187,7 @@ models:
            "-np", "2", "--kv-unified",
            "--cache-reuse", "256", "--cache-ram", "16384"]
     desc: "Nanbeige4.3-33B dense agentic coding teacher (32K context floor, f16 KV in VRAM) — SOTA Terminal-Bench (80.9) & DeepSWE (65.5)."
-    tags: [coding, agentic, teacher, dense, thinking, method_a]
+    tags: [coding, agentic, teacher, dense, thinking]
 
   nanbeige4.3-33b-uncensored:               # Nanbeige4.3-33B Uncensored (64K Context, q8_0 KV)
     hf: dealignai/Nanbeige4.3-33B-UNCENSORED-GGUF
@@ -209,7 +209,7 @@ models:
            "-np", "2", "--kv-unified",
            "--cache-reuse", "256", "--cache-ram", "16384"]
     desc: "Nanbeige4.3-33B Uncensored (dealignai) — 64K context with q8_0 KV cache, zero guardrail friction for deep agentic workflows."
-    tags: [coding, agentic, uncensored, dense, thinking, method_a]
+    tags: [coding, agentic, uncensored, dense, thinking]
 
   nanbeige4.3-33b-128k:                     # Nanbeige4.3-33B 128K Extended Context (IQ4_XS + q4_0 KV)
     hf: bartowski/Nanbeige_Nanbeige4.3-33B-GGUF
@@ -231,7 +231,7 @@ models:
            "-np", "2", "--kv-unified",
            "--cache-reuse", "256", "--cache-ram", "16384"]
     desc: "Nanbeige4.3-33B with 128K context window using IQ4_XS weights and q4_0 KV cache — 100% in dual T4 VRAM with >1.7GB headroom."
-    tags: [coding, agentic, long-context, dense, thinking, method_a]
+    tags: [coding, agentic, long-context, dense, thinking]
 
   qwen3.8-27b-mtp:                          # Method A with native MTP speculative draft (35-50+ t/s)
     hf: ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF
@@ -253,7 +253,7 @@ models:
            "--spec-ngram-mod-n-max", "32",
            "--kv-unified", "--cache-reuse", "256", "--cache-ram", "6144"]
     desc: "Qwen3.8-27B GSQ-RCO with hybrid Hardware-Native MTP and N-gram speculative decoding — 35-50+ t/s decode, task-lossless (100% AIME25/LiveCodeBench), 128K context in VRAM."
-    tags: [mtp, speculative, fast, thinking, long-context, verified, method_a]
+    tags: [mtp, speculative, fast, thinking, long-context, verified]
 
   qwen3.8-27b-dspine-test:                  # EXPERIMENTAL — DSpine block-16 parallel speculative decoding
     hf: sigmanih/Qwen-Qwen3.8-27B-GGUF-Q4_K_M
@@ -294,7 +294,7 @@ models:
            "-ctxcp", "64", "-cms", "2048",      # hybrid model: prompt cache works via checkpoints
            "-sm", "tensor", "--spec-type", "ngram-mod"]
     desc: "Official clean Qwen3.6-35B-A3B MoE (thinking) — 256K native context, uncorrupted weights, high-IQ reasoning and coding."
-    tags: [default, thinking, long-context, verified, clean]
+    tags: [thinking, long-context, verified, clean]
 
   qwen3.6-35b-clean:                        # alias
     hf: mradermacher/Qwen3.6-35B-A3B-i1-GGUF
@@ -324,7 +324,7 @@ models:
            "-ctxcp", "64", "-cms", "2048",      # hybrid model: prompt cache works via checkpoints
            "-sm", "tensor", "--spec-type", "ngram-mod"]
     desc: "Qwen3.6-35B-A3B MoE (thinking) — most accurate in long agent sessions, 256K context. 70 t/s short, 54 t/s at 90K, 43 t/s at 209K."
-    tags: [thinking, long-context, verified]
+    tags: [default, thinking, long-context, verified]
 
   qwen3-coder-30b-abliterated:              # fastest coder
     hf: mradermacher/Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated-i1-GGUF

@@ -526,3 +526,9 @@ button.k-cv-to svg { width: 11px; height: 11px; color: var(--k-text-3); flex: no
 .k-wall-model { color: var(--k-text-3); font-size: var(--k-size-small); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .k-wall-sub { color: var(--k-text-3); font-size: var(--k-size-caption); }
 .k-wall-card .k-btn { justify-self: start; }
+/* welcome: where to get a Kaggle token, and a drop zone for kaggle.json */
+.k-howto { margin: 0 0 6px; padding-left: 22px; display: grid; gap: 12px; color: var(--k-text-2); font-size: var(--k-size-body); }
+.k-howto b { color: var(--k-text); font-weight: 500; }
+.k-howto .k-btn { margin-left: 6px; }
+.k-drop { border: 1px dashed var(--k-line-3); border-radius: var(--k-r-control); padding: 18px; text-align: center; color: var(--k-text-3); font-size: var(--k-size-small); cursor: pointer; transition: background var(--k-t-hover), border-color var(--k-t-hover); }
+.k-drop:hover, .k-drop:focus-visible, .k-drop.k-over { background: var(--k-fill-2); border-color: rgb(var(--k-live)); color: var(--k-text-2); outline: none; }

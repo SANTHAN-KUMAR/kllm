@@ -357,10 +357,9 @@ def test_autoscale_decision_history_endpoint(api):
 
 # ---- accounts ---------------------------------------------------------------------------------------------
 def fake_kaggle(user="carol"):
+    """Stands in for the credential probe accounts.add_account runs (prints the username, exit 0 = key works)."""
     def run(cmd, **kw):
-        if cmd[1:3] == ["config", "view"]:
-            return types.SimpleNamespace(stdout=f"username: {user}\n", stderr="", returncode=0)
-        return types.SimpleNamespace(stdout="", stderr="", returncode=0)
+        return types.SimpleNamespace(stdout=f"username: {user}\n", stderr="", returncode=0)
     return run
 
 
@@ -386,7 +385,7 @@ def test_accounts_list_add_disable_remove(api, monkeypatch):
     r = post(api, "/admin/api/accounts/remove", {"name": "kg3", "delete_credentials": True})
     assert r.status_code == 400 and tok.exists() and len(yaml.safe_load(common.CONFIG_FILE.read_text(encoding="utf-8"))["accounts"]) == 3
     r = post(api, "/admin/api/accounts/remove", {"name": "kg3"})
-    assert r.json()["ok"] and tok.exists() and wrapper.exists()
+    assert r.json()["ok"] and tok.exists() and (os.name == "nt" or wrapper.exists())   # no sh wrapper on Windows
     monkeypatch.setattr(acct_mod.subprocess, "run", fake_kaggle("dave"))
     post(api, "/admin/api/accounts/add", {"token": token, "name": "kg3"})
     r = post(api, "/admin/api/accounts/remove", {"name": "kg3", "delete_credentials": True, "confirm_credentials": "kg3"})

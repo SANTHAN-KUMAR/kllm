@@ -54,3 +54,7 @@ docs/redesign/*
 *.jpeg
 *.webm
 *.tgz
+
+# README images
+!docs/assets/
+!docs/assets/**
