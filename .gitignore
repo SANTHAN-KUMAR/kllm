@@ -62,3 +62,9 @@ docs/redesign/*
 !site/assets/**
 !gateway/assets/
 !gateway/assets/**
+
+# local-only / tooling state
+AGENTS.md
+.agents/
+.claude/
+skills-lock.json
