@@ -58,3 +58,16 @@ def test_no_account_fails_fast_instead_of_waiting(monkeypatch):
     r = TestClient(relay.app, client=LOCAL).post("/v1/chat/completions", json={"model": "kllm", "messages": [{"role": "user", "content": "hi"}]})
     assert time.time() - t0 < 10
     assert r.status_code == 503 and r.json()["error"]["type"] == "no_account" and "/admin" in r.json()["error"]["message"]
+
+
+def test_serve_opens_the_browser_only_for_a_person_at_a_screen():
+    import argparse
+    from gateway import cli
+    a = argparse.Namespace(no_browser=False)
+    assert cli.should_open_browser(a, env={}, isatty=True, platform="win32")
+    assert cli.should_open_browser(a, env={"DISPLAY": ":0"}, isatty=True, platform="linux")
+    assert not cli.should_open_browser(a, env={}, isatty=False, platform="win32")              # service / ensure-serve
+    assert not cli.should_open_browser(a, env={}, isatty=True, platform="linux")               # headless Linux
+    assert not cli.should_open_browser(a, env={"SSH_CONNECTION": "x"}, isatty=True, platform="darwin")
+    assert not cli.should_open_browser(a, env={"KLLM_NO_BROWSER": "1"}, isatty=True, platform="win32")
+    assert not cli.should_open_browser(argparse.Namespace(no_browser=True), env={}, isatty=True, platform="win32")

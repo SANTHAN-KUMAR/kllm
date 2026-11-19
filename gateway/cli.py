@@ -233,6 +233,40 @@ def cmd_ensure_serve(args):
     sys.exit(0 if ok else 1)
 
 
+def should_open_browser(args, env=None, isatty=None, platform=None):
+    """Open the panel when a person runs `kllm serve` in a terminal on a machine with a screen. Never for the
+    background service or `ensure-serve` (no terminal), over SSH, on headless Linux, or with --no-browser /
+    KLLM_NO_BROWSER=1."""
+    env = os.environ if env is None else env
+    platform = sys.platform if platform is None else platform
+    if getattr(args, "no_browser", False) or env.get("KLLM_NO_BROWSER") == "1":
+        return False
+    tty = sys.stdout.isatty() if isatty is None else isatty
+    if not tty or env.get("SSH_CONNECTION") or env.get("SSH_TTY"):
+        return False
+    if platform.startswith("linux") and not (env.get("DISPLAY") or env.get("WAYLAND_DISPLAY")):
+        return False
+    return True
+
+
+def _open_when_up(url, port, wait_s=30):
+    """Wait until the relay answers, then open the panel in the default browser."""
+    import webbrowser
+    deadline = time.time() + wait_s
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/__relay/health", timeout=2):
+                break
+        except Exception:
+            time.sleep(0.5)
+    else:
+        return
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+
+
 def cmd_serve(args):
     """One process: the relay (HTTP) plus the supervisor loop (thread) and, if enabled, the tunnel."""
     import threading, uvicorn
@@ -258,8 +292,11 @@ def cmd_serve(args):
         from . import tunnel
         tunnel.CTL.start(log=lambda *a: print(*a, flush=True))
     print(f"kllm serve: relay on http://{cfg['relay_host']}:{cfg['relay_port']}  root={common.ROOT}", flush=True)
-    print(f"kllm serve: open the panel at http://127.0.0.1:{cfg['relay_port']}/admin"
+    panel = f"http://127.0.0.1:{cfg['relay_port']}/admin" + ("" if cfg.get("accounts") else "#welcome")
+    print(f"kllm serve: panel at {panel}"
           + ("" if cfg.get("accounts") else "  (first run: add your Kaggle token there)"), flush=True)
+    if should_open_browser(args):
+        threading.Thread(target=_open_when_up, args=(panel, cfg["relay_port"]), name="open-panel", daemon=True).start()
     uvicorn.run(relay.app, host=cfg["relay_host"], port=cfg["relay_port"], log_level="info", access_log=False,
                 timeout_graceful_shutdown=5)   # do not hold a restart hostage to multi-minute LLM streams (clients retry)
 
@@ -710,6 +747,7 @@ def main(argv=None):
     s = sub.add_parser("serve", help="run relay + supervisor (+ tunnel if enabled) in ONE process (default install)")
     s.add_argument("--no-supervisor", action="store_true", help="relay only")
     s.add_argument("--remote", action="store_true", help="also open the public tunnel")
+    s.add_argument("--no-browser", action="store_true", help="do not open the panel in your browser")
     s.set_defaults(fn=cmd_serve)
     s = sub.add_parser("ensure-serve", help="start `kllm serve` in the background if down (idempotent; for hooks/wrappers)")
     s.add_argument("--wait", type=int, default=30, help="seconds to wait for the relay to answer")

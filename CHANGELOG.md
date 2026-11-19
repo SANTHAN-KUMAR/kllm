@@ -7,7 +7,8 @@
   20 minutes for a GPU that cannot start.
 - `local_fallback` is off by default. Configs written by 0.3.0 and 0.3.1 had it on for a server most machines do
   not run; kllm switches it off once on the next `kllm serve` (a fallback you enabled yourself is left alone).
-- `kllm serve` prints the panel address.
+- `kllm serve` opens the panel in your browser (the welcome page on a first run). It never does this for
+  the background service, over SSH or on a headless machine; `--no-browser` turns it off.
 - Update checks: kllm looks for a newer version on PyPI once a day in the background and says so in the terminal
   and the panel. `kllm update` upgrades with the tool that installed it (uv, pipx, pip or git).
   Turn checks off with `update_check: false`.
