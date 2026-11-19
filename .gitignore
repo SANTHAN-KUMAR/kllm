@@ -60,3 +60,5 @@ docs/redesign/*
 !docs/assets/**
 !site/assets/
 !site/assets/**
+!gateway/assets/
+!gateway/assets/**

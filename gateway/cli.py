@@ -76,11 +76,45 @@ def _has_accounts():
         return False
 
 
+def _gui_error(msg):
+    """Started from the desktop icon there is no terminal to print to: show a message box instead."""
+    if sys.stdout is not None and getattr(sys.stdout, "isatty", lambda: False)():
+        return
+    try:
+        if os.name == "nt":
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(None, msg, "kllm", 0x10)
+        elif sys.platform == "darwin":
+            import subprocess
+            subprocess.run(["osascript", "-e", f'display alert "kllm" message "{msg}"'], capture_output=True)
+        elif shutil.which("notify-send"):
+            import subprocess
+            subprocess.run(["notify-send", "kllm", msg], capture_output=True)
+    except Exception:
+        pass
+
+
+def cmd_shortcut(args):
+    """`kllm shortcut`: a desktop / start-menu icon that starts kllm and opens the panel."""
+    from . import shortcut
+    try:
+        done = shortcut.remove() if args.remove else shortcut.create()
+    except Exception as e:
+        print(f"kllm: could not {'remove' if args.remove else 'create'} the shortcut: {e}"); sys.exit(1)
+    if not done:
+        print("kllm: no kllm shortcut found" if args.remove else "kllm: nothing was created")
+    elif not args.remove:
+        print("kllm: click the kllm icon to start kllm and open the panel. Remove it with: kllm shortcut --remove")
+
+
 def cmd_open(args):
     """`kllm` / `kllm setup`: make sure the relay runs, then open the panel (the welcome wizard on a first run)."""
     import webbrowser
     if not common.ensure_serve(wait_seconds=45, log=print):
-        print("kllm: the relay did not start (see logs/serve.log under", common.ROOT, ")"); sys.exit(1)
+        msg = f"kllm could not start its relay. Details are in {common.ROOT / 'logs' / 'serve.log'}"
+        print("kllm:", msg)
+        _gui_error(msg)
+        sys.exit(1)
     url = common.relay_base() + "/admin" + ("" if _has_accounts() else "#welcome")
     print(f"kllm panel: {url}" + ("" if _has_accounts() else "   (first run: paste your Kaggle token there)"))
     if not getattr(args, "no_browser", False):
@@ -710,6 +744,9 @@ def agent_access_ok(args, env=None):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="kllm", description="Kaggle GPU as a local LLM gateway")
     sub = ap.add_subparsers(dest="cmd")       # no command: open the panel (setup wizard on a first run)
+    s = sub.add_parser("shortcut", help="add a kllm icon to the desktop and app menu (click: start kllm, open the panel)")
+    s.add_argument("--remove", action="store_true", help="delete the kllm icon again")
+    s.set_defaults(fn=cmd_shortcut)
     s = sub.add_parser("update", help="check PyPI for a newer kllm and upgrade this install")
     s.add_argument("--check", action="store_true", help="only report whether an update is available")
     s.set_defaults(fn=cmd_update)
@@ -832,7 +869,7 @@ def main(argv=None):
         sys.exit(3)
     # zero-config: the first command that needs a config creates it from the Kaggle credentials already on this
     # machine (~/.kaggle/kaggle.json, ~/.kaggle/access_token or KAGGLE_* env). `init`/`add` handle config themselves.
-    if args.cmd not in ("init", "add", "mcp") and (not common.CONFIG_FILE.exists()
+    if args.cmd not in ("init", "add", "mcp", "shortcut", "update") and (not common.CONFIG_FILE.exists()
                                                     or args.cmd in ("serve", "up", "ensure-serve", "setup")):
         from . import setup as _setup
         if not _setup.ensure_config(common.ROOT, log=lambda *a: print(*a, file=sys.stderr), allow_empty=True):

@@ -32,14 +32,24 @@ else
 fi
 [ -n "${KLLM_NO_MODIFY_PATH:-}" ] || uv tool update-shell >/dev/null 2>&1 || true
 
+# desktop icon (click: start kllm and open the panel); skipped on headless machines or with KLLM_NO_SHORTCUT=1
+KLLM_BIN="$(uv tool dir --bin 2>/dev/null)/kllm"
+[ -x "$KLLM_BIN" ] || KLLM_BIN="$(command -v kllm || true)"
+if [ -z "${KLLM_NO_SHORTCUT:-}" ] && [ -n "$KLLM_BIN" ] && { [ "$(uname)" = Darwin ] || [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; }; then
+  "$KLLM_BIN" shortcut >/dev/null 2>&1 && ICON=1 || ICON=
+fi
+
 cat <<'EOF'
 
-kllm is installed. Open a new terminal, then:
+kllm is installed.
+EOF
+if [ -n "${ICON:-}" ]; then
+  echo "Click the kllm icon (desktop or app menu) to start kllm and open the panel."
+fi
+cat <<'EOF'
+Or, in a new terminal:
 
-  kllm up          # first run writes the config from ~/.kaggle/kaggle.json, then starts the default model
+  kllm             # starts kllm and opens the panel; paste your Kaggle token there on the first run
   claude-kllm      # Claude Code on it
-  kllm doctor      # check everything end to end
-
-Only prerequisite: a Kaggle API token saved as ~/.kaggle/kaggle.json
-(kaggle.com -> Settings -> API -> Create New Token).
+  kllm update      # upgrade when a new version is out
 EOF

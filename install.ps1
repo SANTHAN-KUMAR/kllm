@@ -29,12 +29,20 @@ if ($pyproject -and (Test-Path $pyproject) -and (Select-String -Path $pyproject 
 if ($LASTEXITCODE -ne 0) { Write-Host "kllm: installation failed (see the messages above)."; exit 1 }
 if (-not $env:KLLM_NO_MODIFY_PATH) { uv tool update-shell 2>$null | Out-Null }
 
+# desktop and Start menu icon (click: start kllm and open the panel); KLLM_NO_SHORTCUT=1 skips it
+$icon = $false
+if (-not $env:KLLM_NO_SHORTCUT) {
+    $bin = (uv tool dir --bin 2>$null)
+    $exe = if ($bin) { Join-Path $bin "kllm.exe" } else { $null }
+    if (-not ($exe -and (Test-Path $exe))) { $c = Get-Command kllm -ErrorAction SilentlyContinue; if ($c) { $exe = $c.Source } }
+    if ($exe -and (Test-Path $exe)) { & $exe shortcut *> $null; if ($LASTEXITCODE -eq 0) { $icon = $true } }
+}
+
 Write-Host ""
-Write-Host "kllm is installed. Open a new terminal, then:"
+Write-Host "kllm is installed."
+if ($icon) { Write-Host "Click the kllm icon on your desktop or in the Start menu to start kllm and open the panel." }
+Write-Host "Or, in a new terminal:"
 Write-Host ""
-Write-Host "  kllm up          # first run writes the config from ~\.kaggle\kaggle.json, then starts the default model"
+Write-Host "  kllm             # starts kllm and opens the panel; paste your Kaggle token there on the first run"
 Write-Host "  claude-kllm      # Claude Code on it"
-Write-Host "  kllm doctor      # check everything end to end"
-Write-Host ""
-Write-Host "Only prerequisite: a Kaggle API token saved as ~\.kaggle\kaggle.json"
-Write-Host "(kaggle.com -> Settings -> API -> Create New Token)."
+Write-Host "  kllm update      # upgrade when a new version is out"

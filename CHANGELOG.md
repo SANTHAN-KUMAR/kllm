@@ -9,6 +9,8 @@
   not run; kllm switches it off once on the next `kllm serve` (a fallback you enabled yourself is left alone).
 - `kllm serve` opens the panel in your browser (the welcome page on a first run). It never does this for
   the background service, over SSH or on a headless machine; `--no-browser` turns it off.
+- Desktop icon: `kllm shortcut` adds a kllm icon to the desktop and app menu (Windows, macOS, Linux) that
+  starts kllm and opens the panel with no terminal window. The one-line installers add it automatically.
 - Update checks: kllm looks for a newer version on PyPI once a day in the background and says so in the terminal
   and the panel. `kllm update` upgrades with the tool that installed it (uv, pipx, pip or git).
   Turn checks off with `update_check: false`.
