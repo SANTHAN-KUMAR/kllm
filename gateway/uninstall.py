@@ -168,7 +168,7 @@ def _remove_package(cmd, log):
                   f"print('kllm is uninstalled.' if r == 0 else 'uninstall failed (exit %d)' % r); "
                   f"input('Press Enter to close this window')")
         subprocess.Popen([sys.executable, "-c", script], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10),
-                         close_fds=True, cwd=str(pathlib.Path.home()))
+                         close_fds=True, cwd=os.path.expanduser("~"))
         log("  ...   the package is removed in a new window once this command exits")
         return
     r = subprocess.call(cmd)
