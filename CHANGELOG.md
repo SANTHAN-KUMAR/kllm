@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.3 (2026-11-19)
 
 - `kllm uninstall` removes kllm completely, after listing what it will do: stops running Kaggle GPUs and the
   relay, removes the background service and the desktop icon, undoes the tool settings the Connect page wrote,
