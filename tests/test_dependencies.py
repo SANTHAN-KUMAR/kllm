@@ -50,4 +50,4 @@ def test_every_import_is_declared():
 
 def test_declared_list_parses():
     d = declared()
-    assert {"fastapi", "uvicorn", "httpx", "yaml", "kaggle", "numpy", "PIL"} <= d
+    assert {"fastapi", "uvicorn", "httpx", "yaml", "kaggle", "numpy", "PIL", "six"} <= d

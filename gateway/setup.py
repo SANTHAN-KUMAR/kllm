@@ -113,17 +113,22 @@ def parse_account(spec, index):
 def token_user(token_file=None, token=None, timeout=60):
     """Kaggle username for a KGAT_ access token (asks Kaggle; None if rejected/offline)."""
     import os, subprocess
-    try:
-        tok = token or pathlib.Path(token_file).read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
-    env = dict(os.environ, KAGGLE_API_TOKEN=tok)
+    from . import kaggle
+    if token:
+        tok = token.lstrip("\ufeff").strip()
+    else:
+        try:
+            tok = kaggle._read_token_file(token_file)
+        except (OSError, kaggle.NoCredentials):
+            return None
+    env = dict(os.environ, KAGGLE_API_TOKEN=tok, PYTHONIOENCODING="utf-8")
     for k in ("KAGGLE_USERNAME", "KAGGLE_KEY", "KAGGLE_CONFIG_DIR"):
         env.pop(k, None)
     code = ("from kaggle.api.kaggle_api_extended import KaggleApi as K\n"
             "a = K(); a.authenticate(); print('KLLM_USER=' + str(a.config_values.get('username') or ''))")
     try:
-        r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=timeout)
     except Exception:
         return None
     m = re.search(r"KLLM_USER=(\S+)", r.stdout or "")

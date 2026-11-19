@@ -53,3 +53,16 @@ def test_up_without_accounts_goes_to_setup_not_a_traceback(tmp_path, monkeypatch
     cli.main(["up"])
     assert opened and opened[0].endswith("#welcome")
     assert "no Kaggle account yet" in capsys.readouterr().out
+
+
+def test_detect_account_reads_utf16_access_token(tmp_path, monkeypatch):
+    import subprocess, types
+    _no_creds(monkeypatch, tmp_path)
+    home = tmp_path / "empty-home"
+    tok_file = home / ".kaggle" / "access_token"
+    tok_file.parent.mkdir(parents=True)
+    tok_file.write_text("KGAT_" + "ab12" * 8 + "\n", encoding="utf-16")
+    monkeypatch.setattr(subprocess, "run",
+                        lambda *a, **kw: types.SimpleNamespace(stdout="KLLM_USER=alice\n", stderr="", returncode=0))
+    got = setup.detect_account(tmp_path / "root")
+    assert got == {"name": "kg1", "user": "alice", "access_token": str(tok_file)}

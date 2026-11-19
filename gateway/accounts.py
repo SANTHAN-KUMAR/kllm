@@ -43,7 +43,7 @@ def credential_paths(name):
 
 def parse_credential(text):
     """('token', 'KGAT_...') or ('json', {'username', 'key'}) from what the user pasted, else AccountError."""
-    text = (text or "").strip()
+    text = (text or "").lstrip("\ufeff").strip()
     if TOKEN_RE.fullmatch(text):
         return "token", text
     if text.startswith("{"):
@@ -108,23 +108,39 @@ def add_account(token, name=None, cfg=None, run=None, log=lambda *a: None):
         raise AccountError(msg)
 
     try:
-        res = run([sys.executable, "-c", PROBE], env=kaggle.account_env(entry), capture_output=True, text=True,
-                  timeout=90)
+        probe_env = kaggle.account_env(entry)
+        probe_env["PYTHONIOENCODING"] = "utf-8"
+        res = run([sys.executable, "-c", PROBE], env=probe_env, capture_output=True, text=True,
+                  encoding="utf-8", errors="replace", timeout=90)
     except Exception as e:
         fail(f"could not reach Kaggle to check the credentials: {type(e).__name__}")
     out = (res.stdout or "") + "\n" + (res.stderr or "")
+    broken = re.search(r"(ModuleNotFoundError|ImportError|SyntaxError|AttributeError)[^\n]*", res.stderr or "")
+    if broken and (res.returncode != 0 or not re.search(r"username:\s*(\S+)", res.stdout or "")):
+        # kllm's own environment is broken (for example a kaggle release missing a dependency): say so, never
+        # blame the user's token
+        fail("kllm could not run its Kaggle check (" + broken.group(0)[:160] + "). Your token was not tested. "
+             "Update kllm (kllm update) or report this at github.com/SANTHAN-KUMAR/kllm/issues.")
     m = re.search(r"username:\s*(\S+)", res.stdout or "")
     if not m or m.group(1) == "None":
-        fail("Kaggle did not accept the credentials (no username).")
+        err_lines = [ln.strip() for ln in (res.stderr or "").splitlines() if ln.strip()]
+        detail = err_lines[-1].replace(secret, "***")[:200] if err_lines else ""
+        fail("Kaggle did not accept the credentials" + (f": {detail}." if detail else ".")
+             + " Check the token is current at kaggle.com/settings (API).")
     user = m.group(1)
     if any(a.get("user") == user for a in cfg.get("accounts") or []):
         fail(f"account {user} is already configured")
     if res.returncode != 0:
-        fail("credentials rejected by Kaggle: " + out.strip()[-200:].replace(secret, "***"))
+        err_lines = [ln.strip() for ln in (res.stderr or out).splitlines() if ln.strip()]
+        detail = err_lines[-1].replace(secret, "***")[:200] if err_lines else "unknown error"
+        fail("credentials rejected by Kaggle: " + detail)
     entry = {"name": name, "user": user, **{k: v for k, v in entry.items() if k != "name"}}
-    with common.state_lock():
-        txt = common.CONFIG_FILE.read_text(encoding="utf-8")
-        yamledit.atomic_write(common.CONFIG_FILE, yamledit.append_account(txt, entry))
+    try:
+        with common.state_lock():
+            txt = common.CONFIG_FILE.read_text(encoding="utf-8")
+            yamledit.atomic_write(common.CONFIG_FILE, yamledit.append_account(txt, entry))
+    except yamledit.EditError as e:
+        fail(str(e))
     log(f"added {name} = {user}")
     return {"name": name, "user": user, "home": str(home), "wrapper": str(wrapper) if wrapper in made else None}
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.5 (2026-11-19)
+
+- Fix: valid `KGAT_` tokens were rejected on clean installs because `kaggle` 2.2.5 imports `six` without declaring it,
+  and kllm misreported that import crash as invalid credentials. `six` is now declared, and environment errors say
+  what actually failed instead of blaming your token.
+- Fix: adding the first account to a fresh starter config (`accounts: []`) failed to save valid YAML; `yamledit` now
+  converts `accounts: []` (and `null`) into a block list and cleans up temporary credential files if saving fails.
+- Fix: Windows UTF-16LE / BOM `access_token` or `kaggle.json` files and non-ASCII Kaggle CLI output no longer raise
+  `UnicodeDecodeError` during setup or account checks.
+- Clean-room smoke tests now check the `kaggle` library import, `kaggle` CLI, credential validation on `accounts: []`,
+  and adding an account to the real starter config on Linux, macOS and Windows.
+
 ## 0.3.4 (2026-11-19)
 
 - Fix: `kllm serve` crashed in clean installs with `No module named 'numpy'`. The image-analysis code imported

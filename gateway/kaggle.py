@@ -169,7 +169,7 @@ def account_env(acct, base_env=None):
         if kind == "home" and not tok_file.is_file():
             tok_file = base / "access_token"
         env["KAGGLE_API_TOKEN"] = _read_token_file(tok_file)
-        env.pop("KAGGLE_USERNAME", None); env.pop("KAGGLE_KEY", None)
+        env.pop("KAGGLE_USERNAME", None); env.pop("KAGGLE_KEY", None); env.pop("KAGGLE_CONFIG_DIR", None)
     # Optional egress isolation: route this account's API traffic through a proxy so
     # the source IP Kaggle sees is not ours. Inert unless set (per-account or process-wide).
     # Accepts http(s):// proxies or socks5:// (Tor) — the latter needs `pip install socksio`.

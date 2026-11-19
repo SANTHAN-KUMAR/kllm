@@ -105,3 +105,23 @@ def test_atomic_write_validates_and_keeps_backup(tmp_path):
     with pytest.raises(y.EditError):
         y.atomic_write(f, "a: [1\n")
     assert f.read_text(encoding="utf-8") == "a: 2\n"
+
+
+def test_first_account_on_a_starter_config():
+    """A fresh install writes `accounts: []`; adding the first account must turn it into a valid block list."""
+    from gateway import setup
+    for start in ("accounts: []\n", "accounts: null\n", "x: 1\naccounts: []   # add yours\ny: 2\n",
+                  setup.render_config(setup._example_text(), [])):
+        t = y.append_account(start, {"name": "kg1", "user": "alice", "kaggle_home": "C:/h"})
+        t = y.append_account(t, {"name": "kg2", "user": "bob"})
+        got = yaml.safe_load(t)
+        assert [a["name"] for a in got["accounts"]] == ["kg1", "kg2"]
+        if "add yours" in start:
+            assert "add yours" in t and got["x"] == 1 and got["y"] == 2
+        # Removing back to empty and re-adding must also stay valid
+        t = y.remove_account(t, "kg2")
+        t = y.remove_account(t, "kg1")
+        assert (yaml.safe_load(t).get("accounts") or []) == []
+        t = y.append_account(t, {"name": "kg3", "user": "carol"})
+        assert [a["name"] for a in yaml.safe_load(t)["accounts"]] == ["kg3"]
+    assert y._check_accounts("accounts: [\n", []) is False

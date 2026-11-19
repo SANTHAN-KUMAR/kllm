@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kllm-gateway"          # PyPI name ("kllm" is taken by a look-alike); the commands are kllm and claude-kllm
-version = "0.3.4"
+version = "0.3.5"
 description = "Free GPU LLMs for Claude Code, opencode and any OpenAI client: Qwen on Kaggle's free T4s as a local OpenAI/Anthropic API"
 readme = "docs/PYPI.md"          # PyPI page: absolute image URLs, no Mermaid (README.md is the GitHub page)
 requires-python = ">=3.10"
@@ -37,6 +37,7 @@ dependencies = [
   "httpx>=0.27",
   "pyyaml>=6.0",
   "kaggle>=1.6",
+  "six",                         # kaggle 2.2.5 imports six without declaring it
   "numpy>=1.24",                 # image analysis fallback in gateway/vision.py
   "pillow>=10",
 ]

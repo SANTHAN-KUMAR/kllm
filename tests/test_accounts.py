@@ -123,3 +123,47 @@ def test_add_account_rejects_disallowed_prefix(env):
     with pytest.raises(accounts.AccountError, match="not permitted by account_allow_prefixes"):
         accounts.add_account(TOKEN, name="lk4", cfg=cfg, run=fake_run())
 
+
+def test_add_account_reports_broken_environment_instead_of_blaming_token(env):
+    def broken_kgat(cmd, **kw):
+        return types.SimpleNamespace(stdout="", stderr="ModuleNotFoundError: No module named 'six'\n", returncode=1)
+
+    with pytest.raises(accounts.AccountError) as e1:
+        accounts.add_account(TOKEN, run=broken_kgat)
+    msg1 = str(e1.value)
+    assert "could not run its Kaggle check" in msg1 and "ModuleNotFoundError" in msg1
+    assert "did not accept" not in msg1 and "rejected" not in msg1
+    assert not (env / ".kaggle_home2" / ".kaggle" / "access_token").exists()
+
+    def broken_json(cmd, **kw):
+        return types.SimpleNamespace(stdout="username: carol\n",
+                                     stderr="Traceback:\nModuleNotFoundError: No module named 'six'\n", returncode=1)
+
+    pasted = json.dumps({"username": "carol", "key": "0123456789abcdef0123456789abcdef"})
+    with pytest.raises(accounts.AccountError) as e2:
+        accounts.add_account(pasted, run=broken_json)
+    msg2 = str(e2.value)
+    assert "could not run its Kaggle check" in msg2 and "ModuleNotFoundError" in msg2
+    assert "did not accept" not in msg2 and "rejected" not in msg2
+    assert not (env / ".kaggle_home2" / ".kaggle" / "kaggle.json").exists()
+
+
+def test_add_account_cleans_up_credentials_if_config_write_fails(env, monkeypatch):
+    def boom(*a, **k):
+        raise accounts.yamledit.EditError("boom")
+
+    monkeypatch.setattr(accounts.yamledit, "append_account", boom)
+    with pytest.raises(accounts.AccountError, match="boom"):
+        accounts.add_account(TOKEN, run=fake_run())
+    assert not (env / ".kaggle_home2" / ".kaggle" / "access_token").exists()
+    if os.name != "nt":
+        assert not (env / ".local" / "bin" / "kg2").exists()
+
+
+def test_add_account_accepts_bom_prefixed_credentials(env):
+    r1 = accounts.add_account("\ufeff" + TOKEN, run=fake_run(user="bob"))
+    assert r1["user"] == "bob"
+    pasted = "\ufeff" + json.dumps({"username": "carol", "key": "0123456789abcdef0123456789abcdef"})
+    r2 = accounts.add_account(pasted, run=fake_run(user="carol"))
+    assert r2["user"] == "carol"
+

@@ -92,7 +92,7 @@ def _accounts_span(lines):
             while j > i + 1 and not lines[j - 1].strip():
                 j -= 1
             return i, i + 1, j
-        if re.match(r"^accounts:\s*\[\s*\]\s*(#.*)?$", ln):
+        if re.match(r"^accounts:\s*(?:\[\s*\]|null|~)\s*(#.*)?$", ln):
             return i, i + 1, i + 1
     return None
 
@@ -123,13 +123,25 @@ def _accounts_rewrite(text, accounts):
     span = _accounts_span(lines)
     body = [f"  - {yaml.safe_dump(a, default_flow_style=True, width=10**6, sort_keys=False).strip()}" for a in accounts]
     if span is None:
+        if not body:
+            return text.rstrip("\n") + "\n\naccounts: []\n"
         return text.rstrip("\n") + "\n\naccounts:\n" + "\n".join(body) + "\n"
     _, a, b = span
-    return "\n".join(lines[:span[0] + 1] + body + lines[b:])
+    # `accounts: []` / `null` / `~` (the starter config) or any inline value becomes a plain block header; a comment is kept
+    if not body:
+        head = re.sub(r"^(accounts:)\s*(?:\[[^\]]*\]|\{[^}]*\}|null|~)?\s*(#.*)?$",
+                      lambda m: f"{m.group(1)} []" + (f"  {m.group(2)}" if m.group(2) else ""), lines[span[0]])
+    else:
+        head = re.sub(r"^(accounts:)\s*(?:\[[^\]]*\]|\{[^}]*\}|null|~)?\s*(#.*)?$",
+                      lambda m: m.group(1) + (f"  {m.group(2)}" if m.group(2) else ""), lines[span[0]])
+    return "\n".join(lines[:span[0]] + [head] + body + lines[b:])
 
 
 def _check_accounts(new_text, expected):
-    got = (yaml.safe_load(new_text) or {}).get("accounts") or []
+    try:
+        got = (yaml.safe_load(new_text) or {}).get("accounts") or []
+    except yaml.YAMLError:
+        return False
     return got == expected
 
 

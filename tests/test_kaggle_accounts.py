@@ -105,3 +105,15 @@ def test_kaggle_command_prefers_configured_then_sibling_script(home, tmp_path, m
     assert kaggle.kaggle_command({"kaggle_bin": "~/.venvs/kaggle/bin/kaggle"})[0] != "~/.venvs/kaggle/bin/kaggle"
     cmd = kaggle.kaggle_command({})
     assert cmd[0]   # something runnable is always returned (sibling script, PATH, or python -c)
+
+
+def test_token_account_env_clears_conflicting_kaggle_vars(home):
+    d = home / "h1" / ".kaggle"
+    d.mkdir(parents=True)
+    tok = "KGAT_" + "ab12" * 8
+    (d / "access_token").write_text(tok + "\n", encoding="utf-8")
+    env = kaggle.account_env({"name": "kg1", "kaggle_home": str(home / "h1")},
+                             {"KAGGLE_CONFIG_DIR": "/stale", "KAGGLE_USERNAME": "u", "KAGGLE_KEY": "k", "KEEP": "1"})
+    assert env["KAGGLE_API_TOKEN"] == tok and env["KEEP"] == "1"
+    for k in ("KAGGLE_CONFIG_DIR", "KAGGLE_USERNAME", "KAGGLE_KEY"):
+        assert k not in env

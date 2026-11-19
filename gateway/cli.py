@@ -309,7 +309,7 @@ def should_open_browser(args, env=None, isatty=None, platform=None):
     platform = sys.platform if platform is None else platform
     if getattr(args, "no_browser", False) or env.get("KLLM_NO_BROWSER") == "1":
         return False
-    tty = sys.stdout.isatty() if isatty is None else isatty
+    tty = bool(sys.stdout and sys.stdout.isatty()) if isatty is None else isatty
     if not tty or env.get("SSH_CONNECTION") or env.get("SSH_TTY"):
         return False
     if platform.startswith("linux") and not (env.get("DISPLAY") or env.get("WAYLAND_DISPLAY")):
