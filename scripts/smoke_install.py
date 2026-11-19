@@ -62,7 +62,7 @@ def main(wheel):
     print("kaggle:", flush=True)
     IMPORT_ERR = ("ModuleNotFoundError", "ImportError", "SyntaxError")
     fake = "KGAT_" + "0" * 32
-    kenv = {**env, "KAGGLE_API_TOKEN": fake}
+    kenv = {**env, "KAGGLE_API_TOKEN": fake, "KAGGLE_USERNAME": "smoke", "KAGGLE_KEY": "0" * 32}
     r = run_cmd([str(py), "-c", "from kaggle.api.kaggle_api_extended import KaggleApi"], env=kenv, cwd=str(base), timeout=120)
     check("the kaggle library imports (all its dependencies are installed)",
           r.returncode == 0 and not any(e in r.stderr for e in IMPORT_ERR), r.stderr[-500:])
