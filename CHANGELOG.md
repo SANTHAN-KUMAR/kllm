@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.4 (2026-11-19)
+
+- Fix: `kllm serve` crashed in clean installs with `No module named 'numpy'`. The image-analysis code imported
+  numpy and Pillow, which were never declared as dependencies. They are now declared, and loaded only when an image
+  needs analysing, so a missing image library can no longer stop the relay from starting.
+- `kllm update` and `kllm uninstall` work when uv or pipx is no longer on the machine: updates fall back to the
+  environment's own pip, and uninstall deletes the environment and its launchers directly. On Windows the final
+  step runs from cmd.exe, so it no longer tries to delete the Python it is running from.
+- Every release is now installed into a clean, isolated environment and `kllm serve` is started there, on Linux,
+  macOS and Windows, before it can be published. A unit test also fails on any undeclared import.
+
 ## 0.3.3 (2026-11-19)
 
 - `kllm uninstall` removes kllm completely, after listing what it will do: stops running Kaggle GPUs and the

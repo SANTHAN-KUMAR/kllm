@@ -9,12 +9,28 @@ visual understanding through KLLM's high-reasoning backends.
 
 import io, re, base64, math, json, time, hashlib
 _IMAGE_ANALYSIS_CACHE = {}
-import numpy as np
-from PIL import Image
-try:
-    import cv2
-except ImportError:
-    cv2 = None
+# numpy, Pillow and OpenCV are loaded on first use (only analyze_image_bytes needs them), so a missing or broken
+# image library can never stop the relay from starting.
+np = Image = cv2 = None
+
+
+def _load_image_libs():
+    """-> True when numpy and Pillow are importable (OpenCV is optional and only adds shape detection)."""
+    global np, Image, cv2
+    if np is not None and Image is not None:
+        return True
+    try:
+        import numpy as _np
+        from PIL import Image as _Image
+    except Exception:
+        return False
+    np, Image = _np, _Image
+    try:
+        import cv2 as _cv2
+        cv2 = _cv2
+    except Exception:
+        cv2 = None
+    return True
 
 VISION_MODELS = {
     "qwen2.5-vl-7b",
@@ -94,6 +110,8 @@ def _nearest_color_name(rgb: tuple[int, int, int]) -> str:
 
 def analyze_image_bytes(data: bytes) -> dict:
     """Extract exhaustive visual features from raw image bytes using PIL & OpenCV."""
+    if not _load_image_libs():
+        return {"error": "image analysis needs numpy and Pillow (pip install numpy pillow)"}
     try:
         pil_img = Image.open(io.BytesIO(data))
     except Exception as e:

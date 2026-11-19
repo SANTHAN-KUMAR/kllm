@@ -58,16 +58,10 @@ def tool_undos():
 
 
 def package_command():
-    """How to remove the package itself, matching how it was installed (see updates.upgrade_command)."""
+    """How to remove the package itself (see updates.remove_command): with the tool that installed it, or, when that
+    tool is gone, by deleting the self-contained environment and its launchers. None for a git checkout."""
     from . import updates
-    method = updates.upgrade_command()["method"]
-    if method == "uv":
-        return method, ["uv", "tool", "uninstall", updates.PACKAGE]
-    if method == "pipx":
-        return method, ["pipx", "uninstall", updates.PACKAGE]
-    if method == "pip":
-        return method, [sys.executable, "-m", "pip", "uninstall", "-y", updates.PACKAGE]
-    return method, None                                   # a git checkout: the folder is the user's to delete
+    return updates.remove_command()
 
 
 def relay_running():
@@ -114,9 +108,9 @@ def plan(keep_config=False):
             steps.append((f"Delete kllm's copy of Kaggle credentials: {p}", "path", p))
         for p in files_to_remove():
             steps.append((f"Delete {p}", "path", p))
-    method, cmd = package_command()
-    if cmd:
-        steps.append((f"Uninstall the kllm-gateway package ({method})", "package", cmd))
+    rc = package_command()
+    if rc["steps"] or rc["paths"]:
+        steps.append((f"Uninstall the kllm-gateway package: {rc['display']}", "package", rc))
     else:
         steps.append((f"kllm runs from a git checkout ({common.PKG_ROOT}); delete that folder yourself if you no "
                       "longer want it", "note", None))
@@ -150,7 +144,9 @@ def run(steps, log=print):
                 elif p.exists():
                     p.unlink()
             elif kind == "package":
-                _remove_package(detail, log)
+                from . import updates
+                if updates.run_steps(detail["steps"], detail["paths"], what="uninstall", log=log) != 0:
+                    raise RuntimeError("the package could not be removed")
             elif kind == "note":
                 pass
             log(f"  done  {label}")
@@ -158,19 +154,3 @@ def run(steps, log=print):
             failed += 1
             log(f"  FAIL  {label}: {e}")
     return failed
-
-
-def _remove_package(cmd, log):
-    if os.name == "nt":
-        # kllm.exe is running this very command and Windows will not delete a running file: finish in a new
-        # console after this process exits.
-        script = (f"import subprocess, time; time.sleep(2); r = subprocess.call({cmd!r}); print(); "
-                  f"print('kllm is uninstalled.' if r == 0 else 'uninstall failed (exit %d)' % r); "
-                  f"input('Press Enter to close this window')")
-        subprocess.Popen([sys.executable, "-c", script], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10),
-                         close_fds=True, cwd=os.path.expanduser("~"))
-        log("  ...   the package is removed in a new window once this command exits")
-        return
-    r = subprocess.call(cmd)
-    if r != 0:
-        raise RuntimeError(f"{' '.join(cmd[:3])} exited with {r}")

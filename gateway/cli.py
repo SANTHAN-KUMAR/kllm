@@ -121,6 +121,8 @@ def cmd_uninstall(args):
             ans = ""
         if ans != "yes":
             print("kllm: nothing was removed."); return
+    if args.yes:
+        os.environ["KLLM_NO_PAUSE"] = "1"         # unattended: the Windows finishing window closes by itself
     failed = uninstall.run(steps)
     print("kllm: uninstall finished." if not failed else f"kllm: finished with {failed} step(s) failed (see above).")
     sys.exit(1 if failed else 0)

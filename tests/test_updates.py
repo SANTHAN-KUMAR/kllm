@@ -73,9 +73,37 @@ def test_opt_out(root, monkeypatch):
 def test_upgrade_command_matches_the_installer(monkeypatch, tmp_path, exe, method, first):
     monkeypatch.setattr(common, "PKG_ROOT", tmp_path / "site-packages")
     monkeypatch.setattr(updates.sys, "executable", exe)
+    monkeypatch.setattr(updates.sys, "prefix", str(tmp_path / "env"))
+    monkeypatch.setattr(updates, "find_tool", lambda name: f"/opt/bin/{name}")       # the installing tool is present
     u = updates.upgrade_command()
-    assert u["method"] == method and (u["cmd"][0] == first if first else u["cmd"][1:3] == ["-m", "pip"])
-    assert "kllm-gateway" in u["cmd"]
+    last = u["steps"][-1]
+    assert u["method"] == method and "kllm-gateway" in last
+    if first:
+        assert last[0] == f"/opt/bin/{first}"
+    else:
+        assert last[1:4] == ["-m", "pip", "install"]
+
+
+def test_missing_uv_falls_back_to_the_environments_pip(monkeypatch, tmp_path):
+    env = tmp_path / "tools" / "kllm-gateway"; env.mkdir(parents=True)
+    (env / "uv-receipt.toml").write_text("", encoding="utf-8")
+    monkeypatch.setattr(common, "PKG_ROOT", env / "Lib" / "site-packages")
+    monkeypatch.setattr(updates.sys, "prefix", str(env))
+    monkeypatch.setattr(updates.sys, "executable", str(env / "python"))
+    monkeypatch.setattr(updates, "find_tool", lambda name: None)
+    u = updates.upgrade_command()                       # the fake interpreter has no pip: ensurepip comes first
+    assert "not found" in u["method"]
+    assert u["steps"][0][1:3] == ["-m", "ensurepip"] and u["steps"][-1][1:4] == ["-m", "pip", "install"]
+
+
+def test_find_tool_looks_where_installers_put_it(monkeypatch, tmp_path):
+    monkeypatch.setattr(updates.shutil, "which", lambda name: None)
+    monkeypatch.setenv("HOME", str(tmp_path)); monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    exe = "uv.exe" if updates.os.name == "nt" else "uv"
+    (tmp_path / ".local" / "bin").mkdir(parents=True)
+    (tmp_path / ".local" / "bin" / exe).write_text("", encoding="utf-8")
+    assert updates.find_tool("uv") == str(tmp_path / ".local" / "bin" / exe)
+    assert updates.find_tool("pipx") is None
 
 
 def test_checkout_upgrades_with_git(monkeypatch, tmp_path):
@@ -108,4 +136,4 @@ def test_installer_marker_files_win_over_paths(monkeypatch, tmp_path, marker, me
     monkeypatch.setattr(common, "PKG_ROOT", env / "Lib" / "site-packages")
     monkeypatch.setattr(updates.sys, "prefix", str(env))
     monkeypatch.setattr(updates.sys, "executable", str(env / "Scripts" / "python.exe"))
-    assert updates.upgrade_command()["method"] == method
+    assert updates._install_method() == method

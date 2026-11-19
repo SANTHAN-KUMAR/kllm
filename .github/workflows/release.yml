@@ -33,8 +33,30 @@ jobs:
           name: dist
           path: dist/
 
-  publish:
+  # Nothing is published unless the built wheel installs and runs cleanly on every OS.
+  smoke:
     needs: build
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Clean-room smoke test of the exact wheel being released
+        shell: bash
+        run: python scripts/smoke_install.py dist/*.whl
+
+  publish:
+    needs: [build, smoke]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

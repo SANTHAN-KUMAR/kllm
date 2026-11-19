@@ -47,14 +47,41 @@ def test_keep_config_keeps_files_and_credentials(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("method,first", [("uv", "uv"), ("pipx", "pipx"), ("pip", None), ("checkout", "none")])
 def test_package_removed_with_the_installing_tool(monkeypatch, method, first):
-    monkeypatch.setattr(updates, "upgrade_command", lambda: {"method": method, "cmd": [], "display": []})
-    m, cmd = uninstall.package_command()
+    monkeypatch.setattr(updates, "_install_method", lambda: method)
+    monkeypatch.setattr(updates, "find_tool", lambda name: f"/opt/bin/{name}")
+    monkeypatch.setattr(updates, "_env_pip_steps", lambda *a: [["/env/python", "-m", "pip", *a]])
+    rc = uninstall.package_command()
     if first == "none":
-        assert cmd is None
+        assert rc["steps"] is None and rc["paths"] == []
     elif first is None:
-        assert cmd[1:4] == ["-m", "pip", "uninstall"] and "-y" in cmd
+        assert rc["steps"][-1][1:4] == ["-m", "pip", "uninstall"] and "-y" in rc["steps"][-1]
     else:
-        assert cmd[0] == first and "uninstall" in cmd and "kllm-gateway" in cmd
+        assert rc["steps"][0][0] == f"/opt/bin/{first}" and "uninstall" in rc["steps"][0]
+
+
+def test_missing_uv_deletes_the_environment_and_its_launchers(monkeypatch, tmp_path):
+    env = tmp_path / "tools" / "kllm-gateway"; env.mkdir(parents=True)
+    monkeypatch.setattr(updates, "_install_method", lambda: "uv")
+    monkeypatch.setattr(updates, "find_tool", lambda name: None)
+    monkeypatch.setattr(updates.sys, "prefix", str(env))
+    monkeypatch.setattr(updates, "launchers", lambda: [tmp_path / "bin" / "kllm"])
+    rc = uninstall.package_command()
+    assert rc["steps"] is None and "not found" in rc["method"]
+    assert rc["paths"] == [env, tmp_path / "bin" / "kllm"]
+
+
+def test_launchers_only_match_this_environment(monkeypatch, tmp_path):
+    env = tmp_path / "env"; (env / "bin").mkdir(parents=True)
+    bindir = tmp_path / "bin"; bindir.mkdir()
+    ours = bindir / ("kllm.exe" if updates.os.name == "nt" else "kllm")
+    ours.write_bytes(b"#!" + str(env / "bin" / "python").encode() + b"\nimport gateway\n")
+    theirs = bindir / ("claude-kllm.exe" if updates.os.name == "nt" else "claude-kllm")
+    theirs.write_bytes(b"#!/some/other/python\n")
+    monkeypatch.setattr(updates.sys, "prefix", str(env))
+    monkeypatch.setattr(updates.sys, "executable", str(env / "bin" / "python"))
+    monkeypatch.setattr(updates.shutil, "which", lambda n: str(bindir / n))
+    found = updates.launchers()
+    assert ours in found and theirs not in found
 
 
 def test_one_failing_step_does_not_stop_the_rest(tmp_path, monkeypatch):
@@ -65,12 +92,17 @@ def test_one_failing_step_does_not_stop_the_rest(tmp_path, monkeypatch):
     assert failed == 1 and not victim.exists() and "FAIL" in out[0] and "done" in out[1]
 
 
-def test_windows_package_removal_runs_after_exit(monkeypatch):
+def test_windows_finishes_from_cmd_after_kllm_exits(monkeypatch, tmp_path):
     calls = []
-    monkeypatch.setattr(uninstall.os, "name", "nt")
-    monkeypatch.setattr(uninstall.subprocess, "Popen", lambda *a, **k: calls.append(a[0]))
-    uninstall._remove_package(["uv", "tool", "uninstall", "kllm-gateway"], log=lambda *a: None)
-    assert calls and "uninstall" in calls[0][-1]                # a detached helper, not a direct call
+    monkeypatch.setattr(updates.os, "name", "nt")
+    monkeypatch.setattr(updates.subprocess, "Popen", lambda *a, **k: calls.append(a[0]))
+    monkeypatch.setattr(updates.tempfile if hasattr(updates, "tempfile") else __import__("tempfile"), "gettempdir",
+                        lambda: str(tmp_path))
+    updates.run_steps([["uv", "tool", "uninstall", "kllm-gateway"]], [tmp_path / "env"], what="uninstall",
+                      log=lambda *a: None)
+    assert calls and calls[0][:2] == ["cmd.exe", "/c"]        # cmd.exe lives outside the environment being removed
+    bat = (tmp_path / "kllm-uninstall.cmd").read_text(encoding="utf-8")
+    assert "uv tool uninstall kllm-gateway || goto fail" in bat and "rmdir /s /q" in bat and "timeout /t 3" in bat
 
 
 def _args(**kw):

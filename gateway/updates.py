@@ -8,7 +8,7 @@
 - `kllm update` upgrades with the tool that installed kllm. On Windows the running kllm.exe cannot be replaced, so
   the upgrade runs in a separate console after this process exits.
 """
-import json, os, pathlib, re, subprocess, sys, threading, time, urllib.request
+import json, os, pathlib, re, shutil, subprocess, sys, threading, time, urllib.request
 
 from . import common
 
@@ -155,37 +155,157 @@ def _install_method():
     return "pip"
 
 
+def find_tool(name):
+    """Full path to uv / pipx: on PATH, or where their installers put them (a fresh window may not have PATH yet)."""
+    found = shutil.which(name)
+    if found:
+        return found
+    home = pathlib.Path(os.path.expanduser("~"))
+    exe = name + (".exe" if os.name == "nt" else "")
+    cands = [home / ".local" / "bin" / exe, home / ".cargo" / "bin" / exe]
+    for var in ("UV_INSTALL_DIR", "XDG_BIN_HOME", "PIPX_BIN_DIR"):
+        if os.environ.get(var):
+            cands.insert(0, pathlib.Path(os.environ[var]) / exe)
+    if os.name == "nt" and os.environ.get("LOCALAPPDATA"):
+        cands.append(pathlib.Path(os.environ["LOCALAPPDATA"]) / "Programs" / name / exe)
+    for c in cands:
+        if c.is_file():
+            return str(c)
+    return None
+
+
+def _env_pip_steps(*pip_args):
+    """Use this environment's own Python: install pip into it if it has none (uv environments do not), then pip."""
+    py = sys.executable
+    try:
+        has_pip = subprocess.run([py, "-m", "pip", "--version"], capture_output=True, timeout=60,
+                                 stdin=subprocess.DEVNULL).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        has_pip = False
+    steps = [] if has_pip else [[py, "-m", "ensurepip", "--upgrade"]]
+    return steps + [[py, "-m", "pip", *pip_args]]
+
+
 def upgrade_command():
+    """{method, steps: [argv, ...], display: [argv]} for upgrading this install."""
     method = _install_method()
-    if method == "uv":
-        cmd = ["uv", "tool", "upgrade", PACKAGE]
-    elif method == "pipx":
-        cmd = ["pipx", "upgrade", PACKAGE]
-    elif method == "checkout":
-        cmd = ["git", "-C", str(common.PKG_ROOT), "pull", "--ff-only"]
-    else:
-        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", PACKAGE]
-    display = cmd if method != "pip" else ["python", "-m", "pip", "install", "--upgrade", PACKAGE]
-    return {"method": method, "cmd": cmd, "display": display}
+    if method == "checkout":
+        steps = [["git", "-C", str(common.PKG_ROOT), "pull", "--ff-only"]]
+        return {"method": method, "steps": steps, "cmd": steps[0], "display": steps[0]}
+    tool = find_tool(method) if method in ("uv", "pipx") else None
+    if method == "uv" and tool:
+        steps = [[tool, "tool", "upgrade", PACKAGE]]
+        display = ["uv", "tool", "upgrade", PACKAGE]
+    elif method == "pipx" and tool:
+        steps = [[tool, "upgrade", PACKAGE]]
+        display = ["pipx", "upgrade", PACKAGE]
+    else:                                     # plain pip, or uv/pipx is no longer on this machine
+        steps = _env_pip_steps("install", "--upgrade", PACKAGE)
+        display = ["python", "-m", "pip", "install", "--upgrade", PACKAGE]
+        if method in ("uv", "pipx"):
+            method = method + " (not found: using this environment's pip)"
+    return {"method": method, "steps": steps, "cmd": steps[-1], "display": display}
+
+
+def launchers():
+    """The `kllm` and `claude-kllm` launchers that belong to THIS environment (not another install's)."""
+    prefix = str(pathlib.Path(sys.prefix).resolve())
+    names = ["kllm", "claude-kllm"]
+    exts = [".exe", ""] if os.name == "nt" else [""]
+    dirs = {pathlib.Path(sys.executable).parent}
+    for n in names:
+        w = shutil.which(n)
+        if w:
+            dirs.add(pathlib.Path(w).parent)
+    for var in ("UV_TOOL_BIN_DIR", "XDG_BIN_HOME", "PIPX_BIN_DIR"):
+        if os.environ.get(var):
+            dirs.add(pathlib.Path(os.environ[var]))
+    dirs.add(pathlib.Path(os.path.expanduser("~")) / ".local" / "bin")
+    out = []
+    for d in dirs:
+        for n in names:
+            for e in exts:
+                p = d / (n + e)
+                if not p.is_file() and not p.is_symlink():
+                    continue
+                try:
+                    if p.is_symlink() and str(p.resolve()).startswith(prefix):
+                        out.append(p); continue
+                    data = p.read_bytes()[:200000]
+                    if prefix.encode("utf-8") in data or prefix.encode("utf-16-le") in data \
+                            or str(pathlib.Path(sys.prefix)).encode("utf-8") in data:
+                        out.append(p)
+                except OSError:
+                    pass
+    return sorted(set(out))
+
+
+def remove_command():
+    """{method, steps: [argv, ...] | None, paths: [Path], display} for removing this install's package."""
+    method = _install_method()
+    if method == "checkout":
+        return {"method": method, "steps": None, "paths": [], "display": None}
+    tool = find_tool(method) if method in ("uv", "pipx") else None
+    if method == "uv" and tool:
+        return {"method": method, "steps": [[tool, "tool", "uninstall", PACKAGE]], "paths": [],
+                "display": "uv tool uninstall " + PACKAGE}
+    if method == "pipx" and tool:
+        return {"method": method, "steps": [[tool, "uninstall", PACKAGE]], "paths": [],
+                "display": "pipx uninstall " + PACKAGE}
+    if method in ("uv", "pipx"):
+        # the tool that made this environment is gone: the environment is self-contained, so delete it and the
+        # launchers that point into it
+        return {"method": method + " (not found)", "steps": None,
+                "paths": [pathlib.Path(sys.prefix), *launchers()],
+                "display": f"delete {sys.prefix} and the kllm launchers"}
+    return {"method": method, "steps": _env_pip_steps("uninstall", "-y", PACKAGE), "paths": [],
+            "display": "python -m pip uninstall -y " + PACKAGE}
+
+
+def _batch(steps, paths, done, failed):
+    """A cmd.exe script for Windows: waits for kllm to exit, runs the steps, deletes the paths, reports."""
+    lines = ["@echo off", "timeout /t 3 /nobreak >nul"]
+    for argv in steps or []:
+        lines.append(subprocess.list2cmdline([str(a) for a in argv]) + " || goto fail")
+    for p in paths or []:
+        q = '"' + str(p) + '"'
+        lines.append(f"if exist {q}\\* (rmdir /s /q {q}) else (if exist {q} del /f /q {q})")
+    pause = [] if os.environ.get("KLLM_NO_PAUSE") == "1" else ["pause"]
+    lines += ["echo.", f"echo {done}", *pause, "exit /b 0", ":fail", "echo.", f"echo {failed}", *pause, "exit /b 1"]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def run_steps(steps, paths=(), what="update", log=print):
+    """Run argv steps then delete paths. On Windows this happens after kllm exits, from cmd.exe (which lives outside
+    the environment being changed), so nothing being replaced or deleted is still running."""
+    import tempfile
+    if os.name == "nt":
+        bat = os.path.join(tempfile.gettempdir(), f"kllm-{what}.cmd")
+        with open(bat, "w", encoding="utf-8") as f:
+            f.write(_batch(steps, paths, f"kllm {what} finished.", f"kllm {what} failed: see the messages above."))
+        subprocess.Popen(["cmd.exe", "/c", bat], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10),
+                         close_fds=True, cwd=os.path.expanduser("~"))
+        log(f"kllm: the {what} continues in a new window once this command exits")
+        return 0
+    for argv in steps or []:
+        try:
+            r = subprocess.call(argv)
+        except FileNotFoundError:
+            log(f"kllm: {argv[0]} was not found")
+            return 1
+        if r != 0:
+            return r
+    for p in paths or []:
+        p = pathlib.Path(p)
+        if p.is_symlink() or p.is_file():
+            p.unlink()
+        elif p.is_dir():
+            shutil.rmtree(p)
+    return 0
 
 
 def run_upgrade(log=print):
-    """Upgrade this install. Returns 0 on success (or when the upgrade was handed to a separate console on Windows)."""
+    """Upgrade this install with the tool that installed it (or this environment's pip when that tool is gone)."""
     u = upgrade_command()
-    if os.name == "nt" and u["method"] in ("uv", "pipx", "pip"):
-        # kllm.exe is running right now and Windows will not let it be replaced: run the upgrade in a new console
-        # that waits for this process to exit first.
-        script = (f"import subprocess, time, os; time.sleep(2); "
-                  f"r = subprocess.call({u['cmd']!r}); "
-                  f"print(); print('kllm update finished' if r == 0 else 'kllm update failed (exit %d)' % r); "
-                  f"input('Press Enter to close this window')")
-        subprocess.Popen([sys.executable, "-c", script], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10),
-                         close_fds=True)
-        log(f"kllm: upgrading in a new window: {' '.join(u['display'])}")
-        return 0
-    log(f"kllm: running {' '.join(u['display'])}")
-    try:
-        return subprocess.call(u["cmd"])
-    except FileNotFoundError:
-        log(f"kllm: {u['cmd'][0]} is not on PATH. Upgrade with: python -m pip install --upgrade {PACKAGE}")
-        return 1
+    log(f"kllm: {' '.join(u['display'])}" + (f"   [{u['method']}]" if "not found" in u["method"] else ""))
+    return run_steps(u["steps"], what="update", log=log)
