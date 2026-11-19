@@ -337,6 +337,8 @@ def _open_when_up(url, port, wait_s=30):
 
 def cmd_serve(args):
     """One process: the relay (HTTP) plus the supervisor loop (thread) and, if enabled, the tunnel."""
+    from . import banner
+    banner.print_banner()                 # TTY only; skipped for services/logs
     import threading, uvicorn
     from . import relay
     cfg = common.load_config()
