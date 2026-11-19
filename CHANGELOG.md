@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `kllm uninstall` removes kllm completely, after listing what it will do: stops running Kaggle GPUs and the
+  relay, removes the background service and the desktop icon, undoes the tool settings the Connect page wrote,
+  deletes kllm's config, state and stored token copies, and uninstalls the package with the tool that installed
+  it. Your own `~/.kaggle` credentials are never touched; `--keep-config`, `--dry-run` and `--yes` are available.
+- `kllm stop` stops the local relay.
+
 ## 0.3.2 (2026-11-19)
 
 - Opening `http://127.0.0.1:8080/` in a browser now goes to the panel instead of showing an `all_down` error.

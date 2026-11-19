@@ -94,6 +94,38 @@ def _gui_error(msg):
         pass
 
 
+def cmd_stop(args):
+    """`kllm stop`: stop the local relay (GPU backends keep running; `kllm down` stops those)."""
+    from . import uninstall
+    if not uninstall.relay_running():
+        print("kllm: the relay is not running."); return
+    print("kllm: relay stopped." if uninstall.stop_relay() else "kllm: the relay did not stop (is it a service? "
+          "kllm install-service --uninstall)")
+
+
+def cmd_uninstall(args):
+    """`kllm uninstall`: show everything kllm put on this machine, then remove it after confirmation."""
+    from . import uninstall
+    steps = uninstall.plan(keep_config=args.keep_config)
+    print("kllm uninstall will:")
+    for label, _, _ in steps:
+        print("  -", label)
+    print("Kept: your own Kaggle credentials in ~/.kaggle" + (", and kllm's config and state (--keep-config)"
+                                                              if args.keep_config else "") + ".")
+    if args.dry_run:
+        return
+    if not args.yes:
+        try:
+            ans = input("Type 'yes' to remove everything above: ").strip().lower()
+        except EOFError:
+            ans = ""
+        if ans != "yes":
+            print("kllm: nothing was removed."); return
+    failed = uninstall.run(steps)
+    print("kllm: uninstall finished." if not failed else f"kllm: finished with {failed} step(s) failed (see above).")
+    sys.exit(1 if failed else 0)
+
+
 def cmd_shortcut(args):
     """`kllm shortcut`: a desktop / start-menu icon that starts kllm and opens the panel."""
     from . import shortcut
@@ -744,6 +776,13 @@ def agent_access_ok(args, env=None):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="kllm", description="Kaggle GPU as a local LLM gateway")
     sub = ap.add_subparsers(dest="cmd")       # no command: open the panel (setup wizard on a first run)
+    s = sub.add_parser("uninstall", help="remove kllm completely: GPUs, relay, service, icon, tool configs, files, package")
+    s.add_argument("--keep-config", action="store_true", help="keep config.yaml, state and stored tokens")
+    s.add_argument("--dry-run", action="store_true", help="only show what would be removed")
+    s.add_argument("-y", "--yes", action="store_true", help="do not ask for confirmation")
+    s.set_defaults(fn=cmd_uninstall)
+    s = sub.add_parser("stop", help="stop the local relay (`kllm down` stops GPU backends)")
+    s.set_defaults(fn=cmd_stop)
     s = sub.add_parser("shortcut", help="add a kllm icon to the desktop and app menu (click: start kllm, open the panel)")
     s.add_argument("--remove", action="store_true", help="delete the kllm icon again")
     s.set_defaults(fn=cmd_shortcut)
@@ -869,14 +908,14 @@ def main(argv=None):
         sys.exit(3)
     # zero-config: the first command that needs a config creates it from the Kaggle credentials already on this
     # machine (~/.kaggle/kaggle.json, ~/.kaggle/access_token or KAGGLE_* env). `init`/`add` handle config themselves.
-    if args.cmd not in ("init", "add", "mcp", "shortcut", "update") and (not common.CONFIG_FILE.exists()
+    if args.cmd not in ("init", "add", "mcp", "shortcut", "update", "uninstall", "stop") and (not common.CONFIG_FILE.exists()
                                                     or args.cmd in ("serve", "up", "ensure-serve", "setup")):
         from . import setup as _setup
         if not _setup.ensure_config(common.ROOT, log=lambda *a: print(*a, file=sys.stderr), allow_empty=True):
             sys.exit(2)
         common.CONFIG_FILE = common.ROOT / "config.yaml"
     # update notice: cached result only (no network wait); a stale cache is refreshed in the background
-    if args.cmd not in ("mcp", "update"):
+    if args.cmd not in ("mcp", "update", "uninstall", "stop"):
         try:
             from . import updates
             msg = updates.notice()

@@ -217,6 +217,12 @@ async def relay_demand():
 async def relay_health():
     return {"ok": True, "inflight": _inflight["n"]}
 
+@app.post("/__relay/shutdown")
+async def relay_shutdown():
+    """`kllm stop` / `kllm uninstall`: end this relay process (local callers only, like every /__relay path)."""
+    asyncio.get_running_loop().call_later(0.5, lambda: os._exit(0))
+    return {"ok": True, "msg": "kllm relay is stopping"}
+
 # ---- control panel (web UI for managing the Kaggle pool) -------------------
 def _spawn(args):
     """Fire-and-forget a kllm CLI command; the supervisor registers the result.
