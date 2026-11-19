@@ -25,6 +25,11 @@ def _isolated_home(tmp_path_factory, monkeypatch):
         if name == "HOME":
             real_setenv("USERPROFILE", value, prepend)
     monkeypatch.setenv = setenv
+    # a real `kllm serve` on this machine (port 8080) must not change what the CLI does inside a test
+    from gateway import common
+    monkeypatch.setattr(common, "relay_up", lambda *a, **k: False)
+    # no test may reach PyPI for update checks
+    monkeypatch.setenv("KLLM_NO_UPDATE_CHECK", "1")
     yield
 
 

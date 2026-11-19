@@ -178,6 +178,31 @@ NO_KAGGLE_HELP = ("No Kaggle credentials found. Get them once (a phone-verified 
                   "  (or ~/.kaggle/access_token for the newer token format), then run the command again.")
 
 
+OLD_FALLBACK_TEMPLATE = ("# Last-resort fallback: your existing local llama-server (abliterated models/serve.sh).\n"
+                         "# If every Kaggle backend is down, the relay falls back here so you are never fully offline.\n"
+                         "local_fallback:\n  enabled: true")
+
+
+def migrate_local_fallback(cfg_path):
+    """Configs written from the 0.3.0/0.3.1 template had local_fallback switched on, pointing at a llama-server most
+    machines do not run; requests then failed with 'unreachable (local: ConnectError)'. Switch it off, but only when
+    the block is still exactly that template (a hand-written or deliberately enabled fallback is left alone)."""
+    try:
+        txt = cfg_path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    norm = txt.replace("\r\n", "\n")
+    if OLD_FALLBACK_TEMPLATE not in norm:
+        return False
+    new = norm.replace(OLD_FALLBACK_TEMPLATE,
+                       "# Optional last-resort fallback: a llama-server you run yourself on this machine. When enabled and no\n"
+                       "# Kaggle backend is up, requests go there instead of failing.\n"
+                       "local_fallback:\n  enabled: false                    # true only if you run your own llama-server at the url below",
+                       1)
+    cfg_path.write_text(new, encoding="utf-8")
+    return True
+
+
 def ensure_config(root=None, log=print, allow_empty=False):
     """Create config.yaml without questions when it is missing (first `kllm` command), and fill in
     rendezvous_secret when an older config lacks it. Returns True when a usable config exists.
@@ -196,6 +221,9 @@ def ensure_config(root=None, log=print, allow_empty=False):
             txt = _set(cfg_path.read_text(encoding="utf-8"), "rendezvous_secret", sealbox.new_secret())
             cfg_path.write_text(txt, encoding="utf-8")
             log("kllm: generated rendezvous_secret in config.yaml")
+        if migrate_local_fallback(cfg_path):
+            log("kllm: turned off local_fallback in config.yaml (0.3.0/0.3.1 enabled it by default for a server "
+                "most installs do not have)")
         return True
     acct = detect_account(root, log=log)
     if not acct:

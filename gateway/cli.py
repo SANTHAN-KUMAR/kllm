@@ -90,6 +90,25 @@ def cmd_open(args):
             pass
 
 
+def cmd_update(args):
+    """`kllm update`: check PyPI for a newer kllm and upgrade with the tool that installed it."""
+    from . import updates
+    st = updates.status(force=True)
+    if not st["latest"]:
+        print("kllm: could not reach PyPI to check for updates (offline?). You have", st["current"]); sys.exit(1)
+    if not st["update_available"]:
+        print(f"kllm {st['current']} is the latest version."); return
+    print(f"kllm {st['latest']} is available (you have {st['current']}). Release notes: {st['notes']}")
+    if args.check:
+        print(f"Update with: kllm update   (or: {st['command']})"); return
+    code = updates.run_upgrade()
+    if code == 0 and os.name != "nt":
+        print("kllm: updated. Restart `kllm serve` (or the kllm service) to run the new version.")
+    elif code == 0:
+        print("kllm: when the new window says it finished, restart `kllm serve` (or the kllm service).")
+    sys.exit(code)
+
+
 def cmd_up(args):
     if not _has_accounts():
         print("kllm: no Kaggle account yet. Opening the setup page to add one...")
@@ -239,6 +258,8 @@ def cmd_serve(args):
         from . import tunnel
         tunnel.CTL.start(log=lambda *a: print(*a, flush=True))
     print(f"kllm serve: relay on http://{cfg['relay_host']}:{cfg['relay_port']}  root={common.ROOT}", flush=True)
+    print(f"kllm serve: open the panel at http://127.0.0.1:{cfg['relay_port']}/admin"
+          + ("" if cfg.get("accounts") else "  (first run: add your Kaggle token there)"), flush=True)
     uvicorn.run(relay.app, host=cfg["relay_host"], port=cfg["relay_port"], log_level="info", access_log=False,
                 timeout_graceful_shutdown=5)   # do not hold a restart hostage to multi-minute LLM streams (clients retry)
 
@@ -652,6 +673,9 @@ def agent_access_ok(args, env=None):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="kllm", description="Kaggle GPU as a local LLM gateway")
     sub = ap.add_subparsers(dest="cmd")       # no command: open the panel (setup wizard on a first run)
+    s = sub.add_parser("update", help="check PyPI for a newer kllm and upgrade this install")
+    s.add_argument("--check", action="store_true", help="only report whether an update is available")
+    s.set_defaults(fn=cmd_update)
     s = sub.add_parser("setup", help="start kllm and open the setup/control panel in your browser (same as `kllm`)")
     s.add_argument("--no-browser", action="store_true", help="only print the panel URL")
     s.set_defaults(fn=cmd_open)
@@ -776,6 +800,16 @@ def main(argv=None):
         if not _setup.ensure_config(common.ROOT, log=lambda *a: print(*a, file=sys.stderr), allow_empty=True):
             sys.exit(2)
         common.CONFIG_FILE = common.ROOT / "config.yaml"
+    # update notice: cached result only (no network wait); a stale cache is refreshed in the background
+    if args.cmd not in ("mcp", "update"):
+        try:
+            from . import updates
+            msg = updates.notice()
+            if msg:
+                print(msg, file=sys.stderr)
+            updates.refresh_in_background()
+        except Exception:
+            pass
     try:
         args.fn(args)
     except common.ConfigMissing as e:

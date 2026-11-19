@@ -37,6 +37,9 @@ body[data-side="hidden"] .k-side { visibility: hidden; }
 .k-side-sessions small { font-size: var(--k-size-label); color: var(--k-text-4); padding-left: 13px; }
 .k-side-foot { margin-top: auto; padding: 0 10px; display: grid; gap: 4px; font-size: var(--k-size-caption); color: var(--k-text-4); }
 .k-side-foot span { display: flex; gap: 8px; align-items: center; }
+.k-upd { all: unset; cursor: pointer; display: flex; gap: 8px; align-items: center; color: rgb(var(--k-live)); }
+.k-upd svg { width: 12px; height: 12px; }
+.k-upd:hover { text-decoration: underline; }
 .k-btn.k-float-open { position: fixed; top: 16px; left: 16px; z-index: 30; display: none; }
 body[data-side="hidden"] .k-btn.k-float-open { display: inline-flex; }
 .k-main { position: relative; min-width: 0; min-height: 0; overflow: hidden auto; }

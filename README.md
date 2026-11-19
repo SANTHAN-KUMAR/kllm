@@ -79,6 +79,7 @@ If `~/.kaggle/kaggle.json` already exists, kllm finds it and skips the paste.
 
 ```bash
 claude-kllm                                  # Claude Code on the default model
+kllm update                                  # upgrade when a new version is out (kllm tells you)
 opencode -m kllm/qwen3.6-35b-abliterated     # opencode
 kllm down                                    # stop the GPU when you are done, to save quota
 ```

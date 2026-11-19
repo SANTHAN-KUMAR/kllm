@@ -1169,6 +1169,16 @@ def make_router(R):
     async def api_config(request: Request):
         return config_view()
 
+    @r.get("/admin/api/update")
+    @guarded
+    async def api_update(request: Request):
+        """Is a newer kllm on PyPI? Cached for a day; off when update_check is false."""
+        from . import updates
+        if not updates.enabled(R.cfg_fresh()):
+            return {"enabled": False, "update_available": False}
+        st = await asyncio.to_thread(updates.status, request.query_params.get("force") == "1")
+        return {"enabled": True, **st}
+
     @r.get("/admin/api/config/key")
     @guarded
     async def api_config_key(request: Request):

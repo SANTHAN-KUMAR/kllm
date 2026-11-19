@@ -15,7 +15,7 @@ OpenAI- and Anthropic-compatible. No per-request translation needed.
 import time, json, os, sys, subprocess, pathlib, hashlib, asyncio
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, JSONResponse, FileResponse, Response
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse, Response, RedirectResponse
 from . import common, scheduler, auth, media, vision, telemetry, media_store
 
 app = FastAPI(title="kllm-relay")
@@ -275,6 +275,13 @@ def _ui_index():
 @app.get("/admin")
 async def admin_page():
     return _ui_index()
+
+@app.get("/")
+async def root(request: Request):
+    """A browser opening http://127.0.0.1:8080 lands on the panel; API clients get a short JSON pointer."""
+    if "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse("/admin", status_code=307)
+    return JSONResponse({"name": "kllm", "panel": "/admin", "openai_api": "/v1", "anthropic_api": "/v1/messages"})
 
 @app.get("/chat")
 async def chat_page():
@@ -1166,6 +1173,13 @@ def _strip_images_if_unsupported(payload):
                 msg["content"] = new_c
     return modified
 
+def _usable_accounts():
+    """Kaggle accounts that may be launched on (configured, not disabled, allowed by account_allow_prefixes)."""
+    c = cfg()
+    allow = [p for p in (c.get("account_allow_prefixes") or []) if p]
+    return [a for a in (c.get("accounts") or []) if not a.get("disabled")
+            and (not allow or any(str(a.get("name", "")).startswith(p) for p in allow))]
+
 def _local():
     lf = cfg().get("local_fallback", {})
     return [("local", lf["url"].rstrip("/"), lf.get("api_key", ""))] if lf.get("enabled") else []
@@ -1497,7 +1511,9 @@ async def _proxy(path: str, request: Request):
             cands = [c for c in cands if c[0] == "kaggle:" + pin]
         cands = cands or _local()
         if not cands:
-            return JSONResponse({"error": {"message": "kllm: no backend running", "type": "no_backend"}}, status_code=503)
+            return JSONResponse({"error": {"message": "kllm: no model is running yet. Open the panel at "
+                                                      f"{common.relay_base(cfg())}/admin to add a Kaggle account or "
+                                                      "launch a model.", "type": "no_backend"}}, status_code=503)
         label, resp = await _open(cands, request, body, path, None, admit=False)
         if label is None:
             return JSONResponse({"error": {"message": f"kllm: unreachable ({'; '.join(resp)})", "type": "all_down"}},
@@ -1520,11 +1536,17 @@ async def _proxy(path: str, request: Request):
         session["last_req"] = (path, body, request.headers.get("content-type", "application/json"))
     prefix_info = _prefix_diff(session, payload)
     cands, held = _admit(model, session, pin, 0)
+    if held is None and not cands and not _local() and not _usable_accounts():
+        # nothing can ever start: answer now instead of holding the request until the autoscale wait expires
+        return JSONResponse({"error": {"message": "kllm: no Kaggle account is set up, so no model can start. Add your "
+                                                  f"Kaggle token in the panel: {common.relay_base(cfg())}/admin",
+                                       "type": "no_account"}}, status_code=503)
     if held is None and not cands and not sset["enabled"]:
         cands = _local()                     # manual mode, nothing running: local fallback
         held = None
         if not cands:
-            return JSONResponse({"error": {"message": f"kllm: nothing is serving '{model}'. Run `kllm up --model {model}`"
+            return JSONResponse({"error": {"message": f"kllm: nothing is serving '{model}'. Launch it from the panel "
+                                                      f"({common.relay_base(cfg())}/admin), run `kllm up --model {model}`,"
                                                       " or enable autoscale.", "type": "no_backend"}}, status_code=503)
         label, resp = await _open(cands, request, send_body, path, session)
     elif held is None:

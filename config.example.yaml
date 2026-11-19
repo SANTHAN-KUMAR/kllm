@@ -50,6 +50,7 @@ autoscale:
   max_wait_seconds: 1200        # how long a request may wait for a backend to start
 
 # ---- Local endpoints ------------------------------------------------------
+update_check: true                  # check PyPI for a newer kllm once a day (no data sent); `kllm update` upgrades
 relay_host: 127.0.0.1
 relay_port: 8080                    # the stable endpoint everything local points at
 litellm_enabled: false              # OPTIONAL LiteLLM proxy (pip install 'kllm[litellm]'): off = OpenAI clients use the relay directly
@@ -57,10 +58,10 @@ litellm_port: 4000                  # only used when litellm_enabled
 remote_enabled: false               # true: `kllm serve` keeps a public cloudflared tunnel up (downloaded on demand)
 webui_port: 3000
 
-# Last-resort fallback: your existing local llama-server (abliterated models/serve.sh).
-# If every Kaggle backend is down, the relay falls back here so you are never fully offline.
+# Optional last-resort fallback: a llama-server you run yourself on this machine. When enabled and no Kaggle
+# backend is up, requests go there instead of failing.
 local_fallback:
-  enabled: true
+  enabled: false                    # true only if you run your own llama-server at the url below
   url: http://127.0.0.1:8081
   api_key: sk-local
 

@@ -157,6 +157,15 @@ const kept = new Map();
 const raw500 = e => html`<div class="k-error-box">This page failed to load: ${String(e && e.message || e)}. Reload, and check the relay log if it repeats.</div>`;
 
 // ---- sidebar ---------------------------------------------------------------------------------------------------------
+// ---- update notice: one check per page load (the relay caches PyPI for a day) ---------------------------------------------
+let UPD = null;
+get("/admin/api/update").then(r => { if (r.ok && r.data && r.data.update_available) { UPD = r.data; paintSide(); } }).catch(() => {});
+document.addEventListener("click", async e => {
+  if (!e.target.closest("#k-upd") || !UPD) return;
+  try { await navigator.clipboard.writeText(UPD.command); } catch (_) { /* clipboard blocked: the toast still shows it */ }
+  toast(`Update to ${UPD.latest}: run "${UPD.command}" (copied), then restart kllm serve.`);
+});
+
 function paintSide(r = current.route || parse()) {
   const side = $("#k-side");
   if (!side) return;
@@ -183,7 +192,8 @@ function paintSide(r = current.route || parse()) {
       <small>${s.workers} ${s.workers === 1 ? "worker" : "workers"}${s.approvals_pending ? ` · ${s.approvals_pending} waiting` : ""}</small></a>`)}</div></div>` : ""}
     <div class="k-side-foot">
       ${sup == null ? html`<span><i class="k-dot"></i>checking supervisor</span>` : html`<span><i class="k-dot ${sup ? "k-ok" : "k-risk"}"></i>supervisor ${sup ? "running" : "stopped"}</span>`}
-      <span class="k-mono">relay ${esc(location.host)}</span></div>`);
+      <span class="k-mono">relay ${esc(location.host)}</span>
+      ${UPD && UPD.update_available ? html`<button class="k-upd" id="k-upd" type="button" title="Copy the update command">${icon("arrowdown")}kllm ${esc(UPD.latest)} is available</button>` : ""}</div>`);
 }
 
 function setSide(v) {

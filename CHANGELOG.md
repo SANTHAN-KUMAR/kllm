@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.2 (2026-11-19)
+
+- Opening `http://127.0.0.1:8080/` in a browser now goes to the panel instead of showing an `all_down` error.
+- With no Kaggle account set up, requests fail at once with a pointer to the panel, instead of waiting up to
+  20 minutes for a GPU that cannot start.
+- `local_fallback` is off by default. Configs written by 0.3.0 and 0.3.1 had it on for a server most machines do
+  not run; kllm switches it off once on the next `kllm serve` (a fallback you enabled yourself is left alone).
+- `kllm serve` prints the panel address.
+- Update checks: kllm looks for a newer version on PyPI once a day in the background and says so in the terminal
+  and the panel. `kllm update` upgrades with the tool that installed it (uv, pipx, pip or git).
+  Turn checks off with `update_check: false`.
+
 ## 0.3.1 (2026-11-18)
 
 - PyPI page: images load from absolute URLs, richer metadata and project links.
